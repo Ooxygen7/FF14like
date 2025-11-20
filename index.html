@@ -606,10 +606,10 @@
         <div class="top-ui">
             <div class="boss-frame">
                 <div id="boss-invuln-tag">无敌</div>
-                <div class="boss-name">炽天使 · Seraphim</div>
+                <div class="boss-name">六翼炽天使</div>
                 <div class="bar-container">
                     <div class="bar-fill" id="boss-hp-bar"></div>
-                    <div class="hp-text" id="boss-hp-text">11000.00 (100.00%)</div>
+                    <div class="hp-text" id="boss-hp-text">12000.00 (100.00%)</div>
                 </div>
                 <!-- Boss 读条 -->
                 <div class="cast-bar-container" id="boss-cast-bar-container">
@@ -650,12 +650,12 @@
                 <!-- 战斗日志容器 -->
                 <div id="combat-log-container"></div>
                 
-                <div style="font-weight: bold; margin-bottom: 2px;">Player HP</div>
+                <div style="font-weight: bold; margin-bottom: 2px;">生命值</div>
                 <div class="bar-container">
                     <div class="bar-fill" id="player-hp-bar"></div>
                     <div class="hp-text" id="player-hp-text">100.00 (100.00%)</div>
                 </div>
-                <div style="font-weight: bold; margin-top: 5px;">Aether (Red Energy)</div>
+                <div style="font-weight: bold; margin-top: 5px;">能量（每次攻击回复0.2）</div>
                 <div class="resource-container" id="resource-container">
                     <!-- 5个资源点 -->
                     <div class="resource-diamond"><div class="fill"></div></div>
@@ -1806,8 +1806,8 @@ class Cross extends Entity {
 class Boss extends Entity {
     constructor() {
         super(0, -150, CONFIG.bossRadius); 
-        this.hp = 11000;
-        this.maxHp = 11000;
+        this.hp = 12000;
+        this.maxHp = 12000;
         this.name = "炽天使";
         this.angle = Math.PI / 2; 
         this.opacity = 1; 
