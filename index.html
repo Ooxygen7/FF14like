@@ -1,0 +1,3119 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>黑白手绘 MMO Boss战原型 - 完整版</title>
+    <style>
+        /* 基础样式重置与布局 */
+        body, html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background-color: #f0f0f0; /* 米白色画纸背景 */
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            user-select: none;
+        }
+
+        #game-container {
+            position: relative;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        canvas {
+            box-shadow: 0 0 20px rgba(0,0,0,0.1);
+            background-color: #fffdf5; /* 纸张颜色 */
+        }
+
+        /* UI 层 */
+        #ui-layer {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none; /* 让点击穿透到 Canvas */
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            padding: 20px;
+            box-sizing: border-box;
+        }
+
+        /* 准备按钮容器 */
+        #center-overlay {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            text-align: center;
+            pointer-events: auto;
+            z-index: 100;
+        }
+
+        .btn-ready {
+            background: #000;
+            color: #fff;
+            border: 2px solid #000;
+            padding: 15px 40px;
+            font-size: 24px;
+            font-weight: bold;
+            cursor: pointer;
+            font-family: 'Courier New', Courier, monospace;
+            transition: all 0.2s;
+            box-shadow: 5px 5px 0px rgba(0,0,0,0.2);
+        }
+
+        .btn-ready:hover {
+            transform: translate(-2px, -2px);
+            box-shadow: 7px 7px 0px rgba(0,0,0,0.3);
+        }
+
+        .btn-ready:active {
+            transform: translate(2px, 2px);
+            box-shadow: 1px 1px 0px rgba(0,0,0,0.2);
+        }
+
+        /* 倒计时文字 */
+        #countdown-text {
+            font-size: 120px;
+            font-weight: 900;
+            color: #000;
+            display: none;
+            text-shadow: 4px 4px 0px #fff;
+        }
+
+        /* 状态栏通用样式 */
+        .status-bars {
+            width: 300px;
+            pointer-events: auto;
+            position: relative; 
+            margin-bottom: 10px; 
+        }
+        
+        /* 战斗日志区域 */
+        #combat-log-container {
+            width: 100%;
+            height: 150px;
+            display: flex;
+            flex-direction: column-reverse; /* 新消息在底部 */
+            overflow: hidden;
+            margin-bottom: 5px;
+            pointer-events: none;
+        }
+
+        .log-entry {
+            font-size: 14px;
+            font-weight: bold;
+            color: #c0392b;
+            text-shadow: 1px 1px 0 #fff, -1px -1px 0 #fff, 1px -1px 0 #fff, -1px 1px 0 #fff;
+            margin-top: 2px;
+            animation: fadeOut 3s forwards;
+        }
+
+        @keyframes fadeOut {
+            0% { opacity: 1; transform: translateY(0); }
+            80% { opacity: 1; transform: translateY(0); }
+            100% { opacity: 0; transform: translateY(-10px); }
+        }
+        
+        .bar-container {
+            margin-bottom: 5px;
+            background: #fff;
+            border: 2px solid #000;
+            height: 24px; 
+            position: relative;
+        }
+
+        .bar-fill {
+            height: 100%;
+            background: #000;
+            width: 100%;
+            transition: width 0.1s linear; /* 平滑过渡 */
+        }
+
+        /* 血条上的文字 */
+        .hp-text {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 12px;
+            color: #fff;
+            font-weight: bold;
+            text-shadow: 1px 1px 0 #000, -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000;
+            letter-spacing: 0.5px;
+            z-index: 1;
+        }
+
+        /* 警告气泡 (移动到屏幕中间靠下) */
+        .warning-container {
+            position: absolute;
+            top: 60%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            pointer-events: none;
+            text-align: center;
+            z-index: 200;
+        }
+
+        .warning-bubble {
+            background: rgba(192, 57, 43, 0.9);
+            color: #fff;
+            padding: 8px 16px;
+            border-radius: 4px;
+            font-size: 16px;
+            font-weight: bold;
+            opacity: 0;
+            transition: opacity 0.2s, transform 0.2s;
+            transform: translateY(10px);
+            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+            white-space: nowrap;
+        }
+
+        .warning-bubble.show {
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        /* Boss 读条样式 */
+        .cast-bar-container {
+            width: 100%;
+            height: 22px; 
+            background: #fff;
+            border: 2px solid #000; 
+            position: relative;
+            margin-top: 4px;
+            display: none; 
+        }
+        
+        /* 玩家读条样式 */
+        .player-cast-bar-container {
+            width: 200px;
+            height: 10px;
+            background: #333;
+            border: 1px solid #fff;
+            position: absolute;
+            bottom: 120px; /* 技能栏上方 */
+            left: 50%;
+            transform: translateX(-50%);
+            display: none;
+            box-shadow: 0 0 5px rgba(0,0,0,0.5);
+        }
+        
+        .player-cast-bar-fill {
+            height: 100%;
+            background: #3498db;
+            width: 0%;
+        }
+        
+        .cast-bar-fill {
+            height: 100%;
+            background: #e74c3c; 
+            width: 0%;
+            transition: width 0.1s linear; 
+        }
+
+        .cast-bar-text {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 16px; 
+            color: #000;
+            font-weight: bold;
+            text-shadow: 1px 1px 0 #fff, -1px -1px 0 #fff; 
+        }
+
+        /* 资源粒 (菱形) */
+        .resource-container {
+            display: flex;
+            gap: 12px;
+            margin-top: 10px;
+            padding-left: 5px;
+        }
+
+        .resource-diamond {
+            width: 12px;
+            height: 12px;
+            border: 2px solid #000; /* 默认黑色边框 */
+            transform: rotate(45deg);
+            background-color: #fff;
+            transition: border-color 0.2s;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        /* 资源填充 */
+        .resource-diamond .fill {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            width: 100%;
+            height: 0%; /* 默认空 */
+            background-color: #e74c3c;
+            transition: height 0.2s;
+        }
+        
+        /* 燥热进度条 (Heat Gauge) */
+        #heat-gauge-wrapper {
+            position: absolute;
+            right: 20px;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 40px;
+            height: 300px;
+            border: 3px solid #000;
+            background: #fff;
+            display: none; /* 默认隐藏 */
+            flex-direction: column-reverse; /* 从下往上 */
+            overflow: hidden;
+        }
+
+        #heat-gauge-label {
+            position: absolute;
+            right: 70px;
+            top: 50%;
+            transform: translateY(-50%) rotate(90deg);
+            font-weight: 900;
+            font-size: 20px;
+            letter-spacing: 5px;
+            display: none;
+        }
+
+        #heat-gauge-fill {
+            width: 100%;
+            height: 0%;
+            background: linear-gradient(to top, #f1c40f, #e67e22, #e74c3c);
+            transition: height 0.5s linear;
+            position: relative;
+        }
+        
+        /* 燥热条内部的波浪动画 */
+        #heat-gauge-fill::after {
+            content: "";
+            position: absolute;
+            top: -10px;
+            left: -50%;
+            width: 200%;
+            height: 20px;
+            background: rgba(255,255,255,0.3);
+            border-radius: 40%;
+            animation: wave 2s linear infinite;
+        }
+
+        @keyframes wave {
+            0% { transform: translateX(0) rotate(0deg); }
+            100% { transform: translateX(20px) rotate(360deg); }
+        }
+
+        .top-ui {
+            width: 100%;
+            display: flex;
+            justify-content: center;
+        }
+        
+        .boss-frame {
+            width: 600px;
+            text-align: center;
+            position: relative; /* 为无敌标签定位 */
+        }
+
+        /* 无敌标签 */
+        #boss-invuln-tag {
+            position: absolute;
+            left: -60px;
+            top: 50%;
+            transform: translateY(-50%);
+            background: #c0392b;
+            color: #fff;
+            padding: 5px 10px;
+            font-weight: bold;
+            font-size: 14px;
+            border: 2px solid #000;
+            box-shadow: 2px 2px 0 rgba(0,0,0,0.2);
+            display: none;
+        }
+
+        .boss-name {
+            font-size: 24px;
+            font-weight: bold;
+            margin-bottom: 5px;
+            letter-spacing: 2px;
+        }
+
+        /* 技能栏 (去除白色背景) */
+        .skill-bar-wrapper {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            gap: 15px;
+            pointer-events: auto;
+            background: none; /* 去掉背景 */
+            padding: 10px 20px;
+            border: none; /* 去掉边框 */
+            box-shadow: none; /* 去掉阴影 */
+        }
+
+        .skill-slot {
+            position: relative;
+            width: 60px;
+            height: 60px;
+            border: 2px solid #333;
+            background: #000;
+            border-radius: 6px;
+            overflow: hidden;
+            cursor: pointer;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.5);
+        }
+
+        .skill-img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+        
+        .skill-key {
+            position: absolute;
+            top: 2px;
+            left: 4px;
+            font-size: 12px;
+            color: #fff;
+            font-weight: bold;
+            text-shadow: 1px 1px 0 #000;
+            z-index: 5;
+        }
+
+        .skill-cd-overlay {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            width: 100%;
+            height: 0%;
+            background: rgba(0, 0, 0, 0.7);
+            z-index: 4;
+            transition: height 0.1s linear;
+        }
+
+        .skill-cd-text {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: #fff;
+            font-size: 20px;
+            font-weight: bold;
+            z-index: 6;
+            display: none;
+        }
+
+        /* 自定义 JS Tooltip */
+        #custom-tooltip {
+            position: absolute;
+            display: none;
+            background: rgba(0, 0, 0, 0.9);
+            color: #fff;
+            padding: 10px;
+            border-radius: 5px;
+            font-size: 13px;
+            width: 220px;
+            white-space: pre-line;
+            z-index: 9999;
+            pointer-events: none;
+            border: 1px solid #555;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.5);
+        }
+        
+        /* GCD 遮罩 (半透明全遮) */
+        .gcd-overlay {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 3;
+            display: none;
+        }
+        
+        /* 左下角玩家面板 */
+        .player-panel {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+        }
+        
+        /* 右下角 Buff 列表 */
+        #buff-debuff-container {
+            position: absolute;
+            bottom: 20px;
+            right: 20px;
+            text-align: right;
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+            font-family: 'Segoe UI', sans-serif;
+            font-weight: bold;
+            text-shadow: 1px 1px 0 #000;
+        }
+        
+        .buff-item { color: #2ecc71; font-size: 16px; }
+        .debuff-item { color: #e74c3c; font-size: 16px; }
+
+        /* --- 新增：结束画面样式 --- */
+        .end-screen {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 9999;
+            color: #fff;
+            pointer-events: auto;
+        }
+
+        #game-over-screen {
+            background: rgba(50, 0, 0, 0.9);
+        }
+
+        #victory-screen {
+            background: rgba(255, 215, 0, 0.9);
+            color: #000;
+        }
+
+        .end-screen h1 {
+            font-size: 80px;
+            margin-bottom: 20px;
+            font-weight: 900;
+            letter-spacing: 5px;
+            text-transform: uppercase;
+            text-shadow: 2px 2px 0 rgba(0,0,0,0.5);
+        }
+
+        .btn-retry {
+            padding: 20px 50px;
+            font-size: 28px;
+            cursor: pointer;
+            border: 4px solid #fff;
+            background: transparent;
+            color: #fff;
+            font-weight: bold;
+            margin-top: 40px;
+            transition: transform 0.2s, background 0.2s, color 0.2s;
+            font-family: 'Segoe UI', sans-serif;
+        }
+
+        #game-over-screen .btn-retry:hover {
+            background: #fff;
+            color: #8B0000;
+            transform: scale(1.1);
+        }
+
+        #victory-screen .btn-retry {
+            border-color: #000;
+            color: #000;
+        }
+
+        #victory-screen .btn-retry:hover {
+            background: #000;
+            color: #f1c40f;
+            transform: scale(1.1);
+        }
+
+        #damage-report {
+            background: rgba(255,255,255,0.2);
+            padding: 20px;
+            border-radius: 10px;
+            max-height: 40vh;
+            overflow-y: auto;
+            width: 400px;
+            border: 2px solid rgba(0,0,0,0.2);
+        }
+
+        .report-title {
+            font-size: 20px;
+            font-weight: bold;
+            margin-bottom: 10px;
+            text-align: center;
+            border-bottom: 2px solid #000;
+            padding-bottom: 5px;
+        }
+
+        .report-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 8px 0;
+            font-size: 18px;
+            border-bottom: 1px solid rgba(0,0,0,0.1);
+            font-weight: bold;
+        }
+
+        .report-item:last-child {
+            border-bottom: none;
+        }
+
+        .report-source { text-align: left; }
+        .report-value { text-align: right; }
+
+    </style>
+</head>
+<body>
+
+<!-- 音频标签 -->
+<audio id="bgm" src="bgm.mp3" loop></audio>
+
+<!-- 失败界面 -->
+<div id="game-over-screen" class="end-screen" style="display: none;">
+    <h1>战败 (DEFEAT)</h1>
+    <p style="font-size: 24px;">做好准备再作尝试。</p>
+    <button class="btn-retry" onclick="location.reload()">重新挑战</button>
+</div>
+
+<!-- 胜利界面 -->
+<div id="victory-screen" class="end-screen" style="display: none;">
+    <h1>讨伐成功 (VICTORY)</h1>
+    <div id="damage-report">
+        <div class="report-title">承伤统计</div>
+        <div id="damage-report-list">
+            <!-- JS 填充 -->
+        </div>
+    </div>
+    <button class="btn-retry" onclick="location.reload()">再次挑战</button>
+</div>
+
+<div id="game-container">
+    <canvas id="gameCanvas"></canvas>
+
+    <div id="ui-layer">
+        <!-- Boss 血条区域 -->
+        <div class="top-ui">
+            <div class="boss-frame">
+                <div id="boss-invuln-tag">无敌</div>
+                <div class="boss-name">炽天使 · Seraphim</div>
+                <div class="bar-container">
+                    <div class="bar-fill" id="boss-hp-bar"></div>
+                    <div class="hp-text" id="boss-hp-text">11000.00 (100.00%)</div>
+                </div>
+                <!-- Boss 读条 -->
+                <div class="cast-bar-container" id="boss-cast-bar-container">
+                    <div class="cast-bar-fill" id="boss-cast-bar-fill"></div>
+                    <div class="cast-bar-text" id="boss-cast-bar-text">Skill Name</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 燥热进度条 -->
+        <div id="heat-gauge-label">HEAT</div>
+        <div id="heat-gauge-wrapper">
+            <div id="heat-gauge-fill"></div>
+        </div>
+
+        <!-- 玩家读条 -->
+        <div class="player-cast-bar-container" id="player-cast-bar">
+            <div class="player-cast-bar-fill" id="player-cast-fill"></div>
+        </div>
+
+        <!-- 警告气泡 -->
+        <div class="warning-container">
+            <div id="player-warning" class="warning-bubble">目标超出攻击范围</div>
+        </div>
+
+        <!-- 悬浮窗 -->
+        <div id="custom-tooltip"></div>
+
+        <!-- 中间交互区 (准备按钮/倒计时) -->
+        <div id="center-overlay">
+            <button id="btn-ready" class="btn-ready">准备就绪 (Ready)</button>
+            <div id="countdown-text">3</div>
+        </div>
+
+        <!-- 底部玩家状态区域 -->
+        <div class="player-panel">
+            <div class="status-bars">
+                <!-- 战斗日志容器 -->
+                <div id="combat-log-container"></div>
+                
+                <div style="font-weight: bold; margin-bottom: 2px;">Player HP</div>
+                <div class="bar-container">
+                    <div class="bar-fill" id="player-hp-bar"></div>
+                    <div class="hp-text" id="player-hp-text">100.00 (100.00%)</div>
+                </div>
+                <div style="font-weight: bold; margin-top: 5px;">Aether (Red Energy)</div>
+                <div class="resource-container" id="resource-container">
+                    <!-- 5个资源点 -->
+                    <div class="resource-diamond"><div class="fill"></div></div>
+                    <div class="resource-diamond"><div class="fill"></div></div>
+                    <div class="resource-diamond"><div class="fill"></div></div>
+                    <div class="resource-diamond"><div class="fill"></div></div>
+                    <div class="resource-diamond"><div class="fill"></div></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 右下角 Buff/Debuff 列表 -->
+        <div id="buff-debuff-container">
+            <!-- 动态生成 -->
+        </div>
+
+        <!-- 底部中间技能栏 -->
+        <div class="skill-bar-wrapper">
+            <!-- Q -->
+            <div class="skill-slot" id="skill-q" data-key="q" 
+                 data-tooltip="[先锋剑]\n瞬间造成80伤害。\n距离: 2.5\nCD: 1.0s (GCD)">
+                <div class="skill-key">Q</div>
+                <img src="https://i.meee.com.tw/cISthSi.png" class="skill-img">
+                <div class="gcd-overlay" id="gcd-q"></div>
+                <div class="skill-cd-overlay" id="cd-overlay-q"></div>
+                <div class="skill-cd-text" id="cd-text-q"></div>
+            </div>
+            <!-- E -->
+            <div class="skill-slot" id="skill-e" data-key="e"
+                 data-tooltip="[圣灵]\n读条1.5s，造成120伤害。\n移动打断。\n距离: 12\nCD: 0.5s (GCD)">
+                <div class="skill-key">E</div>
+                <img src="https://i.meee.com.tw/0JxxIQj.png" class="skill-img">
+                <div class="gcd-overlay" id="gcd-e"></div>
+                <div class="skill-cd-overlay" id="cd-overlay-e"></div>
+                <div class="skill-cd-text" id="cd-text-e"></div>
+            </div>
+            <!-- R -->
+            <div class="skill-slot" id="skill-r" data-key="r"
+                 data-tooltip="[盾阵]\n6秒内减伤20%。\n消耗: 1能量\nCD: 6s (能力技)">
+                <div class="skill-key">R</div>
+                <img src="https://i.meee.com.tw/UJZOXTn.png" class="skill-img">
+                <div class="skill-cd-overlay" id="cd-overlay-r"></div>
+                <div class="skill-cd-text" id="cd-text-r"></div>
+            </div>
+            <!-- F -->
+            <div class="skill-slot" id="skill-f" data-key="f"
+                 data-tooltip="[悔罪]\n从天而降造成300伤害。\n10秒内伤害提高25%。\n消耗: 2能量\nCD: 20s (能力技)">
+                <div class="skill-key">F</div>
+                <img src="https://i.meee.com.tw/iIg8JTe.png" class="skill-img">
+                <div class="skill-cd-overlay" id="cd-overlay-f"></div>
+                <div class="skill-cd-text" id="cd-text-f"></div>
+            </div>
+            <!-- G -->
+            <div class="skill-slot" id="skill-g" data-key="g"
+                 data-tooltip="[深仁厚泽]\n读条1.3s，回复250生命值。\n消耗: 1能量\nCD: 0.1s (GCD)">
+                <div class="skill-key">G</div>
+                <img src="https://i.meee.com.tw/F1stqvi.png" class="skill-img">
+                <div class="gcd-overlay" id="gcd-g"></div>
+                <div class="skill-cd-overlay" id="cd-overlay-g"></div>
+                <div class="skill-cd-text" id="cd-text-g"></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+/**
+ * 游戏核心逻辑与渲染
+ */
+
+// 全局：伤害统计
+let damageHistory = {};
+// 全局：BGM
+const bgm = document.getElementById('bgm');
+bgm.volume = 0.3; // 适量音量
+
+const CONFIG = {
+    arenaRadius: 400,
+    playerRadius: 15,
+    bossRadius: 40,
+    startZoneRadius: 120, 
+    colors: {
+        ink: '#1a1a1a',
+        paper: '#fffdf5',
+        highlight: '#ffffff',
+        danger: '#333333',
+        aoeWarning: 'rgba(231, 76, 60, 0.3)', 
+        aoeBorder: 'rgba(231, 76, 60, 0.8)',   
+        targetRing: '#e74c3c',
+        selectedRing: '#f39c12', 
+        alphaSeal: '#8B0000'
+    }
+};
+
+const UNIT_LEN = CONFIG.playerRadius * 2; // 30px
+
+// 技能数据定义
+const SKILLS = {
+    q: { name: '先锋剑', dmg: 80, cd: 1.0, gcd: true, range: 2.5 * UNIT_LEN, cast: 0, cost: 0 },
+    e: { name: '圣灵', dmg: 120, cd: 0.5, gcd: true, range: 12 * UNIT_LEN, cast: 1.5, cost: 0 },
+    r: { name: '盾阵', dmg: 0, cd: 6.0, gcd: false, range: 0, cast: 0, cost: 1.0, buff: 'mitigation' },
+    f: { name: '悔罪', dmg: 300, cd: 20.0, gcd: false, range: 12 * UNIT_LEN, cast: 0, cost: 2.0, buff: 'damageUp' },
+    g: { name: '深仁厚泽', dmg: 0, cd: 0.1, gcd: true, range: 0, cast: 1.3, cost: 1.0, buff: 'heal' }
+};
+
+const STATE = {
+    PRE_FIGHT: 0,   
+    COUNTDOWN: 1,   
+    COMBAT: 2,      
+    VICTORY: 3,
+    WIPE: 4
+};
+
+let currentState = STATE.PRE_FIGHT;
+let gameTime = 0;
+let screenShake = 0;
+
+let currentTarget = null;
+let playerWarningTimeout = null;
+
+function showPlayerWarning(text) {
+    const el = document.getElementById('player-warning');
+    el.innerText = text;
+    el.classList.add('show');
+    if (playerWarningTimeout) clearTimeout(playerWarningTimeout);
+    playerWarningTimeout = setTimeout(() => {
+        el.classList.remove('show');
+    }, 1000);
+}
+
+const CombatLog = {
+    add(text, color='#c0392b') {
+        const container = document.getElementById('combat-log-container');
+        const el = document.createElement('div');
+        el.className = 'log-entry';
+        el.style.color = color;
+        el.innerText = text;
+        if (container.children.length > 8) container.removeChild(container.firstChild);
+        container.appendChild(el);
+        setTimeout(() => { if (el.parentNode) el.parentNode.removeChild(el); }, 3500);
+    }
+};
+
+function roughLine(ctx, x1, y1, x2, y2, wobble = 1) {
+    ctx.beginPath();
+    ctx.moveTo(x1, y1);
+    const midX = (x1 + x2) / 2 + (Math.random() - 0.5) * wobble * 5;
+    const midY = (y1 + y2) / 2 + (Math.random() - 0.5) * wobble * 5;
+    ctx.quadraticCurveTo(midX, midY, x2, y2);
+    ctx.stroke();
+}
+
+function roughCircle(ctx, x, y, r, wobble = 2) {
+    ctx.beginPath();
+    for (let i = 0; i <= 360; i += 45) {
+        const rad = i * Math.PI / 180;
+        const rVar = r + (Math.random() - 0.5) * wobble;
+        const px = x + Math.cos(rad) * rVar;
+        const py = y + Math.sin(rad) * rVar;
+        if (i === 0) ctx.moveTo(px, py);
+        else ctx.lineTo(px, py);
+    }
+    ctx.closePath();
+    ctx.stroke();
+}
+
+const Scheduler = {
+    tasks: [],
+    add(timeDelay, callback) {
+        this.tasks.push({ time: gameTime + timeDelay, callback });
+    },
+    update(dt) {
+        for (let i = this.tasks.length - 1; i >= 0; i--) {
+            if (gameTime >= this.tasks[i].time) {
+                this.tasks[i].callback();
+                this.tasks.splice(i, 1);
+            }
+        }
+    },
+    reset() {
+        this.tasks = [];
+    }
+};
+
+const HolySealManager = {
+    seals: [], 
+    puddles: [], 
+    alphaSeals: [], 
+    
+    addSeal(x, y, type, isAlpha = false) {
+        const id = Date.now() + Math.random();
+        const seal = { x, y, type, active: true, isAlpha, id };
+        if (isAlpha) this.alphaSeals.push(seal);
+        else this.seals.push(seal);
+        let color = isAlpha ? 'rgba(139, 0, 0, 0.8)' : 'rgba(200, 50, 50, 0.5)';
+        EffectManager.addExplosion(x, y, 50, color);
+    },
+    
+    addPuddle(x, y, radius) {
+        this.puddles.push({ x, y, radius, lifeTime: 0 });
+    },
+
+    clearPuddles() { this.puddles = []; },
+    clearSeals() { this.seals = []; },
+    clearAlphaSeals() { this.alphaSeals = []; },
+
+    triggerAlphaResponse(index) {
+        if (index < 0 || index >= this.alphaSeals.length) return;
+        const s = this.alphaSeals[index];
+        if (!s || !s.active) return;
+
+        const width = 3.3 * UNIT_LEN; 
+        const length = 2000; 
+        const duration = 0.8; 
+
+        let angles = (s.type === 'plus') ? [0, Math.PI/2] : [Math.PI/4, 3*Math.PI/4];
+
+        for (const baseAngle of angles) {
+            const dirs = [baseAngle, baseAngle + Math.PI];
+            for (const dir of dirs) {
+                TelegraphManager.addRect(s.x, s.y, length, width, dir, duration, (t) => {
+                    const dx = player.x - t.x;
+                    const dy = player.y - t.y;
+                    const localX = dx * Math.cos(-t.angle) - dy * Math.sin(-t.angle);
+                    const localY = dx * Math.sin(-t.angle) + dy * Math.cos(-t.angle);
+                    
+                    if (localX >= 0 && localX <= t.length && Math.abs(localY) <= t.width/2) {
+                        player.takeDamage(500, "圣印α爆发");
+                    }
+                    const step = 120;
+                    for(let d=50; d<t.length; d+=step) {
+                        const ex = t.x + Math.cos(t.angle)*d;
+                        const ey = t.y + Math.sin(t.angle)*d;
+                        EffectManager.addExplosion(ex, ey, t.width/1.5, 'rgba(200, 50, 50, 0.6)');
+                    }
+                });
+            }
+        }
+        Scheduler.add(duration, () => { s.active = false; });
+    },
+
+    update(dt) {
+        for (const p of this.puddles) {
+            p.lifeTime += dt;
+            if (p.lifeTime > 1.0) {
+                const dx = player.x - p.x;
+                const dy = player.y - p.y;
+                const dist = Math.sqrt(dx*dx + dy*dy);
+                if (dist < p.radius) player.takeDamage(100 * dt, "雷池");
+            }
+        }
+    },
+
+    draw(ctx) {
+        for (const p of this.puddles) {
+            ctx.save(); ctx.translate(p.x, p.y);
+            ctx.beginPath(); ctx.arc(0, 0, p.radius, 0, Math.PI * 2);
+            ctx.fillStyle = `rgba(100, 149, 237, 0.2)`; ctx.fill();
+            ctx.strokeStyle = `rgba(65, 105, 225, ${0.5 + Math.sin(Date.now()/200)*0.2})`; ctx.lineWidth = 2; ctx.stroke();
+            if (Math.random() > 0.8) {
+                 const lx = (Math.random() - 0.5) * p.radius * 1.5;
+                 const ly = (Math.random() - 0.5) * p.radius * 1.5;
+                 ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(lx, ly);
+                 ctx.strokeStyle = 'rgba(200, 240, 255, 0.8)'; ctx.lineWidth = 1; ctx.stroke();
+            }
+            ctx.restore();
+        }
+
+        const allSeals = [...this.seals, ...this.alphaSeals];
+        for (const s of allSeals) {
+            if (!s.active) continue;
+            ctx.save(); ctx.translate(s.x, s.y);
+            if (s.type === 'cross') ctx.rotate(Math.PI / 4);
+            
+            if (s.isAlpha) {
+                ctx.fillStyle = CONFIG.colors.alphaSeal;
+                ctx.shadowBlur = 15; ctx.shadowColor = 'rgba(255, 50, 50, 0.8)';
+            } else {
+                ctx.fillStyle = 'rgba(231, 76, 60, 0.8)';
+                ctx.shadowBlur = 10; ctx.shadowColor = 'red';
+            }
+            
+            const size = 20; const thickness = 6;
+            ctx.beginPath(); ctx.rect(-size, -thickness/2, size*2, thickness); 
+            ctx.rect(-thickness/2, -size, thickness, size*2); ctx.fill();
+            
+            ctx.strokeStyle = s.isAlpha ? '#8B0000' : '#c0392b'; ctx.lineWidth = 2;
+            ctx.beginPath(); ctx.arc(0, 0, size + 5, 0, Math.PI*2); ctx.stroke();
+
+            if (s.isAlpha && Math.random() > 0.85) {
+                ctx.beginPath(); ctx.moveTo((Math.random()-0.5)*size, (Math.random()-0.5)*size);
+                ctx.lineTo((Math.random()-0.5)*size*2, (Math.random()-0.5)*size*2);
+                ctx.strokeStyle = 'rgba(255, 255, 100, 0.8)'; ctx.lineWidth = 1; ctx.stroke();
+            }
+            ctx.restore();
+        }
+    }
+};
+
+const TelegraphManager = {
+    list: [],
+    addCircle(x, y, radius, duration, onFinish) { this.list.push({ type: 'circle', x, y, radius, timer: 0, duration, onFinish }); },
+    addCone(x, y, radius, angle, fov, duration, onFinish) { this.list.push({ type: 'cone', x, y, radius, angle, fov, timer: 0, duration, onFinish }); },
+    addDonut(x, y, innerRadius, outerRadius, duration, onFinish) { this.list.push({ type: 'donut', x, y, innerRadius, outerRadius, timer: 0, duration, onFinish }); },
+    addProximity(x, y, duration, onFinish) { this.list.push({ type: 'proximity', x, y, timer: 0, duration, onFinish }); },
+    addRect(x, y, length, width, angle, duration, onFinish) { this.list.push({ type: 'rect', x, y, length, width, angle, timer: 0, duration, onFinish }); },
+    update(dt) {
+        for (let i = this.list.length - 1; i >= 0; i--) {
+            const t = this.list[i]; t.timer += dt;
+            if (t.timer >= t.duration) { if (t.onFinish) t.onFinish(t); this.list.splice(i, 1); }
+        }
+    },
+    draw(ctx) {
+        ctx.save();
+        for (const t of this.list) {
+            ctx.fillStyle = CONFIG.colors.aoeWarning; ctx.strokeStyle = CONFIG.colors.aoeBorder; ctx.lineWidth = 2;
+            if (t.type === 'circle') { ctx.beginPath(); ctx.arc(t.x, t.y, t.radius, 0, Math.PI * 2); ctx.fill(); ctx.stroke(); }
+            else if (t.type === 'cone') { ctx.beginPath(); ctx.moveTo(t.x, t.y); ctx.arc(t.x, t.y, t.radius, t.angle - t.fov/2, t.angle + t.fov/2); ctx.lineTo(t.x, t.y); ctx.fill(); ctx.stroke(); }
+            else if (t.type === 'donut') { ctx.beginPath(); ctx.arc(t.x, t.y, t.outerRadius, 0, Math.PI*2, false); ctx.arc(t.x, t.y, t.innerRadius, 0, Math.PI*2, true); ctx.fill("evenodd"); ctx.stroke(); }
+            else if (t.type === 'rect') {
+                ctx.save(); ctx.translate(t.x, t.y); ctx.rotate(t.angle); ctx.beginPath(); ctx.rect(0, -t.width/2, t.length, t.width); ctx.fill();
+                if (t.width > 60) { 
+                     const grad = ctx.createLinearGradient(0, -t.width/2, 0, t.width/2);
+                     grad.addColorStop(0, 'rgba(255,0,0,0)'); grad.addColorStop(0.5, 'rgba(255,0,0,0.5)'); grad.addColorStop(1, 'rgba(255,0,0,0)');
+                     ctx.fillStyle = grad; ctx.fill();
+                }
+                ctx.stroke(); ctx.restore();
+            } else if (t.type === 'proximity') {
+                ctx.beginPath(); ctx.arc(t.x, t.y, 10, 0, Math.PI * 2); ctx.fillStyle = '#e74c3c'; ctx.fill();
+                const waves = 4; const maxR = 500; const progress = t.timer / t.duration;
+                for (let i = 0; i < waves; i++) {
+                    let waveT = (progress * (waves + 1) - i) / (waves); 
+                    if (waveT > 0 && waveT < 1) {
+                        const r = waveT * maxR; const alpha = (1 - waveT) * 0.8;
+                        ctx.lineWidth = 2 + waveT * 4; ctx.strokeStyle = `rgba(231, 76, 60, ${alpha})`;
+                        ctx.beginPath(); ctx.arc(t.x, t.y, r, 0, Math.PI * 2); ctx.stroke();
+                    }
+                }
+            }
+        }
+        ctx.restore();
+    }
+};
+
+const EffectManager = {
+    list: [],
+    addLightning(x, y, height) { this.list.push({ type: 'lightning', x, y, height, timer: 0, duration: 0.3 }); },
+    addShockwave(x, y, radius, angle, fov) { this.list.push({ type: 'cone_shock', x, y, radius, angle, fov, timer: 0, duration: 0.3 }); },
+    addRedShockwave(x, y) { this.list.push({ type: 'red_shock', x, y, timer: 0, duration: 1.3 }); },
+    addMeteor(x, y, duration) { this.list.push({ type: 'meteor', x, y, targetY: y, startY: y - 1000, timer: 0, duration }); },
+    addExplosion(x, y, radius, color = 'rgba(255, 200, 100, 0.5)') { this.list.push({ type: 'explosion', x, y, radius, color, timer: 0, duration: 0.5 }); },
+    addBlackFlash(duration) { this.list.push({ type: 'black_flash', timer: 0, duration }); },
+    // 新技能特效
+    addSwordWave(x, y, angle) { this.list.push({ type: 'sword_wave', x, y, angle, timer: 0, duration: 0.4 }); },
+    addLaser(x, y, tx, ty) { this.list.push({ type: 'laser', x, y, tx, ty, timer: 0, duration: 0.3 }); },
+    addGiantSword(x, y) { this.list.push({ type: 'giant_sword', x, y, timer: 0, duration: 1.0 }); },
+    addHealPillar(x, y) { this.list.push({ type: 'heal_pillar', x, y, timer: 0, duration: 1.5 }); },
+    // 创世纪特效
+    addGenesisDoom() { this.list.push({ type: 'genesis_doom', timer: 0, duration: 5.0 }); },
+    
+    update(dt) {
+        for (let i = this.list.length - 1; i >= 0; i--) {
+            this.list[i].timer += dt;
+            if (this.list[i].timer >= this.list[i].duration) this.list.splice(i, 1);
+        }
+    },
+    draw(ctx) {
+        ctx.save();
+        for (const e of this.list) {
+            const progress = e.timer / e.duration;
+            const alpha = 1 - progress;
+
+            if (e.type === 'lightning') {
+                ctx.strokeStyle = `rgba(100, 200, 255, ${alpha})`; ctx.lineWidth = 3; ctx.shadowBlur = 10; ctx.shadowColor = 'cyan';
+                ctx.beginPath(); ctx.moveTo(e.x, e.y - e.height);
+                let cy = e.y - e.height; let cx = e.x;
+                while(cy < e.y) { cy += 20 + Math.random() * 20; cx += (Math.random() - 0.5) * 40; ctx.lineTo(cx, cy); }
+                ctx.stroke(); ctx.fillStyle = `rgba(200, 240, 255, ${alpha})`; ctx.beginPath(); ctx.arc(e.x, e.y, 20, 0, Math.PI * 2); ctx.fill();
+            } else if (e.type === 'cone_shock') {
+                ctx.fillStyle = `rgba(255, 255, 255, ${alpha * 0.8})`; ctx.strokeStyle = `rgba(200, 200, 255, ${alpha})`;
+                ctx.beginPath(); ctx.moveTo(e.x, e.y);
+                const r = e.radius + (progress * 50); ctx.arc(e.x, e.y, r, e.angle - e.fov/2, e.angle + e.fov/2); ctx.lineTo(e.x, e.y);
+                ctx.fill(); ctx.stroke();
+            } else if (e.type === 'red_shock') {
+                ctx.strokeStyle = `rgba(255, 50, 50, ${alpha})`; ctx.lineWidth = 4;
+                ctx.beginPath(); ctx.arc(e.x, e.y, progress * 500, 0, Math.PI * 2); ctx.stroke();
+            } else if (e.type === 'meteor') {
+                const currentY = e.startY + (e.targetY - e.startY) * (e.timer / e.duration);
+                ctx.beginPath(); ctx.moveTo(e.x, currentY - 60); ctx.lineTo(e.x - 25, currentY - 200); ctx.lineTo(e.x + 25, currentY - 200);
+                ctx.fillStyle = `rgba(231, 76, 60, 0.5)`; ctx.fill();
+                ctx.fillStyle = '#000'; ctx.strokeStyle = '#e74c3c'; ctx.lineWidth = 4;
+                ctx.beginPath(); ctx.arc(e.x, currentY, 50, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+            } else if (e.type === 'explosion') {
+                ctx.fillStyle = e.color; ctx.globalAlpha = alpha; ctx.beginPath(); ctx.arc(e.x, e.y, e.radius * progress + 10, 0, Math.PI*2); ctx.fill(); ctx.globalAlpha = 1.0;
+            } else if (e.type === 'black_flash') {
+                let flashAlpha = progress < 0.2 ? progress / 0.2 : 1 - (progress - 0.2) / 0.8;
+                ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.fillStyle = `rgba(0, 0, 0, ${flashAlpha})`; ctx.fillRect(0, 0, canvas.width, canvas.height); ctx.restore();
+            } else if (e.type === 'sword_wave') {
+                ctx.save(); ctx.translate(e.x, e.y); ctx.rotate(e.angle);
+                ctx.strokeStyle = `rgba(150, 150, 150, ${alpha})`; ctx.lineWidth = 4;
+                ctx.beginPath(); 
+                // 画弧线
+                ctx.arc(0, 0, 40 + progress * 60, -Math.PI/4, Math.PI/4);
+                ctx.stroke();
+                ctx.restore();
+            } else if (e.type === 'laser') {
+                ctx.strokeStyle = `rgba(0, 191, 255, ${alpha})`; ctx.lineWidth = 5;
+                ctx.beginPath(); ctx.moveTo(e.x, e.y); ctx.lineTo(e.tx, e.ty); ctx.stroke();
+                ctx.strokeStyle = `rgba(255, 255, 255, ${alpha})`; ctx.lineWidth = 2; ctx.stroke();
+            } else if (e.type === 'giant_sword') {
+                // 金色法阵
+                ctx.save(); 
+                ctx.translate(e.x, e.y);
+                ctx.scale(1, 0.5); 
+                ctx.beginPath();
+                ctx.arc(0, 0, 60, 0, Math.PI*2);
+                ctx.fillStyle = `rgba(255, 215, 0, ${alpha * 0.5})`;
+                ctx.fill();
+                ctx.strokeStyle = `rgba(255, 215, 0, ${alpha})`;
+                ctx.lineWidth = 3;
+                ctx.stroke();
+                // 内部旋转
+                ctx.rotate(Date.now() / 500);
+                ctx.beginPath(); ctx.moveTo(-40, 0); ctx.lineTo(40, 0); ctx.moveTo(0, -40); ctx.lineTo(0, 40); ctx.stroke();
+                ctx.restore();
+                
+                // 剑身向上刺出 (从地下伸出)
+                const riseProgress = Math.min(1, progress * 4); // 前1/4时间升起
+                const swordHeight = 250 * riseProgress;
+                
+                ctx.save(); 
+                ctx.translate(e.x, e.y);
+                // 向上绘制
+                ctx.fillStyle = `rgba(255, 223, 0, ${alpha})`;
+                ctx.shadowBlur = 15; ctx.shadowColor = 'orange';
+                ctx.beginPath();
+                ctx.moveTo(0, -swordHeight); // 剑尖
+                ctx.lineTo(-20, 0); // 左底
+                ctx.lineTo(20, 0); // 右底
+                ctx.fill();
+                
+                // 剑柄装饰 (在底部)
+                if (riseProgress > 0.1) {
+                    ctx.fillStyle = `rgba(218, 165, 32, ${alpha})`;
+                    ctx.fillRect(-5, 0, 10, swordHeight * 0.2);
+                }
+                ctx.restore();
+            } else if (e.type === 'heal_pillar') {
+                ctx.save(); ctx.translate(e.x, e.y);
+                let pillarAlpha = 0;
+                if (progress < 0.2) pillarAlpha = progress / 0.2; else pillarAlpha = 1 - (progress - 0.2) / 0.8;
+                const grad = ctx.createLinearGradient(0, 0, 0, -400);
+                grad.addColorStop(0, `rgba(255, 215, 0, ${pillarAlpha * 0.6})`);
+                grad.addColorStop(1, `rgba(255, 250, 200, 0)`);
+                ctx.fillStyle = grad; ctx.fillRect(-40, -400, 80, 400);
+                ctx.scale(1, 0.3); ctx.beginPath(); ctx.arc(0, 0, 50 + Math.sin(Date.now()/100)*5, 0, Math.PI*2);
+                ctx.fillStyle = `rgba(255, 215, 0, ${pillarAlpha})`; ctx.fill();
+                ctx.restore();
+            } else if (e.type === 'genesis_doom') {
+                // 创世纪全屏特效
+                ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0); 
+                // 黑屏渐变
+                let doomAlpha = progress < 0.2 ? progress / 0.2 : 1.0;
+                ctx.fillStyle = `rgba(0, 0, 0, ${doomAlpha})`; 
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                
+                // 红色闪电
+                if (doomAlpha > 0.5 && Math.random() > 0.7) {
+                    ctx.beginPath();
+                    let lx = Math.random() * canvas.width;
+                    let ly = 0;
+                    ctx.moveTo(lx, ly);
+                    while(ly < canvas.height) {
+                        ly += 20 + Math.random() * 30;
+                        lx += (Math.random() - 0.5) * 100;
+                        ctx.lineTo(lx, ly);
+                    }
+                    ctx.strokeStyle = 'rgba(255, 50, 50, 0.8)';
+                    ctx.lineWidth = 4 + Math.random() * 4;
+                    ctx.shadowBlur = 20; ctx.shadowColor = 'red';
+                    ctx.stroke();
+                }
+                ctx.restore();
+            }
+        }
+        ctx.restore();
+    }
+};
+
+const Input = {
+    keys: {},
+    mouse: { x: 0, y: 0, down: false },
+    init() {
+        window.addEventListener('keydown', e => {
+            this.keys[e.key.toLowerCase()] = true;
+            if (e.key === 'Tab') { e.preventDefault(); cycleTarget(); }
+            
+            // 技能绑定
+            if (currentState === STATE.COMBAT) {
+                if (['q', 'e', 'r', 'f', 'g'].includes(e.key.toLowerCase())) {
+                    player.useSkill(e.key.toLowerCase());
+                }
+            }
+        });
+        window.addEventListener('keyup', e => this.keys[e.key.toLowerCase()] = false);
+        window.addEventListener('mousemove', e => {
+            const rect = canvas.getBoundingClientRect();
+            this.mouse.x = e.clientX - rect.left - canvas.width / 2;
+            this.mouse.y = e.clientY - rect.top - canvas.height / 2;
+            
+            // Tooltip logic
+            this.updateTooltip(e);
+        });
+        window.addEventListener('mousedown', () => this.mouse.down = true);
+        window.addEventListener('mouseup', () => this.mouse.down = false);
+        
+        // Tooltip event listeners for skill slots
+        ['q', 'e', 'r', 'f', 'g'].forEach(key => {
+            const slot = document.getElementById(`skill-${key}`);
+            slot.addEventListener('mouseenter', (e) => {
+                const tooltip = document.getElementById('custom-tooltip');
+                // Fix: Replace \n string with newline character
+                tooltip.innerText = slot.getAttribute('data-tooltip').replace(/\\n/g, '\n');
+                tooltip.style.display = 'block';
+            });
+            slot.addEventListener('mouseleave', (e) => {
+                document.getElementById('custom-tooltip').style.display = 'none';
+            });
+        });
+    },
+    updateTooltip(e) {
+        const tooltip = document.getElementById('custom-tooltip');
+        if (tooltip.style.display === 'block') {
+            tooltip.style.left = (e.clientX + 15) + 'px';
+            tooltip.style.top = (e.clientY - 50) + 'px';
+        }
+    },
+    getAxis() {
+        let x = 0, y = 0;
+        if (this.keys['w'] || this.keys['arrowup']) y -= 1;
+        if (this.keys['s'] || this.keys['arrowdown']) y += 1;
+        if (this.keys['a'] || this.keys['arrowleft']) x -= 1;
+        if (this.keys['d'] || this.keys['arrowright']) x += 1;
+        if (x !== 0 || y !== 0) { const len = Math.sqrt(x*x + y*y); x /= len; y /= len; }
+        return { x, y };
+    }
+};
+
+function cycleTarget() {
+    if (currentState !== STATE.COMBAT) return;
+    const targets = [];
+    if (boss.isTargetable && boss.isVisible) targets.push(boss);
+    for (const c of boss.crosses) if (c.active && c.hp > 0) targets.push(c);
+    if (targets.length === 0) { currentTarget = null; return; }
+    let idx = targets.indexOf(currentTarget);
+    currentTarget = targets[(idx + 1) % targets.length] || targets[0];
+}
+
+// --- 辅助：处理游戏结束/胜利逻辑 ---
+function handleGameOver() {
+    currentState = STATE.WIPE;
+    const el = document.getElementById('game-over-screen');
+    el.style.display = 'flex';
+    // 停止可能的循环
+}
+
+function handleVictory() {
+    currentState = STATE.VICTORY;
+    const el = document.getElementById('victory-screen');
+    const reportList = document.getElementById('damage-report-list');
+    
+    // 生成伤害统计 HTML
+    reportList.innerHTML = '';
+    const sortedDamage = Object.entries(damageHistory).sort((a, b) => b[1] - a[1]);
+    
+    if (sortedDamage.length === 0) {
+        reportList.innerHTML = '<div style="text-align:center; padding:10px;">无受伤记录 (无敌!)</div>';
+    } else {
+        sortedDamage.forEach(([source, amount]) => {
+            const row = document.createElement('div');
+            row.className = 'report-item';
+            row.innerHTML = `<span class="report-source">${source}</span><span class="report-value">${Math.round(amount)}</span>`;
+            reportList.appendChild(row);
+        });
+    }
+    
+    el.style.display = 'flex';
+}
+
+
+class Entity {
+    constructor(x, y, radius) { this.x = x; this.y = y; this.radius = radius; }
+}
+
+class Player extends Entity {
+    constructor() {
+        super(0, 250, CONFIG.playerRadius); 
+        this.baseSpeed = 200; 
+        this.speedMultiplier = 1.0;
+        this.angle = -Math.PI / 2; 
+        this.maxHp = 1000;
+        this.hp = 1000;
+        this.resource = 5.0; 
+        
+        this.debuffs = { slow: 0, frozen: 0, burn: 0, burnTick: 0, fireCountdown: 0, fireActive: 0, iceCountdown: 0, iceActive: 0, stopTimer: 0 };
+        
+        this.gcdTimer = 0;
+        this.castTimer = 0;
+        this.castMax = 0;
+        this.castingSkill = null;
+        this.cooldowns = { q: 0, e: 0, r: 0, f: 0, g: 0 };
+        this.buffs = { mitigation: 0, damageUp: 0 }; 
+        
+        this.attackRange = CONFIG.playerRadius * 4; 
+        this.rangeVizTimer = 0;
+    }
+
+    applySlow(duration) { this.debuffs.slow = duration; }
+    applyBurn(duration) { this.debuffs.burn = duration; }
+    applyFrozen(duration) { this.debuffs.frozen = duration; }
+    applySupremeFire() { this.debuffs.fireCountdown = 5.0; }
+    applySupremeIce() { this.debuffs.iceCountdown = 5.0; }
+
+    updateUI() {
+        const pct = (this.hp / this.maxHp) * 100;
+        document.getElementById('player-hp-bar').style.width = pct + '%';
+        document.getElementById('player-hp-text').innerText = `${this.hp.toFixed(0)} / ${this.maxHp.toFixed(0)} (${pct.toFixed(1)}%)`;
+
+        const diamonds = document.querySelectorAll('.resource-diamond');
+        diamonds.forEach((d, index) => {
+            const fill = d.querySelector('.fill');
+            if (this.resource >= index + 1) {
+                fill.style.height = '100%';
+                d.style.borderColor = '#8B0000'; // Deep Red when full
+            } else {
+                d.style.borderColor = '#000'; // Black when not full
+                if (this.resource > index) {
+                    fill.style.height = ((this.resource - index) * 100) + '%';
+                } else {
+                    fill.style.height = '0%';
+                }
+            }
+        });
+
+        const buffContainer = document.getElementById('buff-debuff-container');
+        buffContainer.innerHTML = ''; 
+        
+        if (this.buffs.mitigation > 0) {
+            const el = document.createElement('div'); el.className = 'buff-item';
+            el.innerText = `盾阵 (${this.buffs.mitigation.toFixed(1)}s)`; buffContainer.appendChild(el);
+        }
+        if (this.buffs.damageUp > 0) {
+            const el = document.createElement('div'); el.className = 'buff-item';
+            el.innerText = `悔罪 (${this.buffs.damageUp.toFixed(1)}s)`; buffContainer.appendChild(el);
+        }
+        if (this.debuffs.slow > 0) {
+            const el = document.createElement('div'); el.className = 'debuff-item';
+            el.innerText = `减速 (${this.debuffs.slow.toFixed(1)}s)`; buffContainer.appendChild(el);
+        }
+        if (this.debuffs.burn > 0) {
+            const el = document.createElement('div'); el.className = 'debuff-item';
+            el.innerText = `烧伤 (${this.debuffs.burn.toFixed(1)}s)`; buffContainer.appendChild(el);
+        }
+        if (this.debuffs.frozen > 0) {
+            const el = document.createElement('div'); el.className = 'debuff-item';
+            el.innerText = `冻结 (${this.debuffs.frozen.toFixed(1)}s)`; buffContainer.appendChild(el);
+        }
+        if (this.debuffs.fireCountdown > 0) {
+            const el = document.createElement('div'); el.className = 'debuff-item';
+            el.innerText = `至高之炎 (${this.debuffs.fireCountdown.toFixed(1)}s)`; buffContainer.appendChild(el);
+        }
+        if (this.debuffs.iceCountdown > 0) {
+            const el = document.createElement('div'); el.className = 'debuff-item';
+            el.innerText = `至高之寒 (${this.debuffs.iceCountdown.toFixed(1)}s)`; buffContainer.appendChild(el);
+        }
+
+
+        ['q', 'e', 'r', 'f', 'g'].forEach(key => {
+            const skill = SKILLS[key];
+            const cd = this.cooldowns[key];
+            const el = document.getElementById(`cd-overlay-${key}`);
+            const txt = document.getElementById(`cd-text-${key}`);
+            const gcdEl = document.getElementById(`gcd-${key}`);
+            
+            if (gcdEl) {
+                if (skill.gcd && this.gcdTimer > 0) {
+                    gcdEl.style.display = 'block';
+                } else {
+                    gcdEl.style.display = 'none';
+                }
+            }
+
+            let displayCD = cd;
+            let showOverlay = false;
+            let pct = 0;
+            
+            if (skill.gcd) {
+                const maxTime = Math.max(cd, this.gcdTimer);
+                if (maxTime > 0) {
+                    showOverlay = true;
+                    pct = (maxTime / Math.max(skill.cd, 1.0)) * 100;
+                    if (pct > 100) pct = 100;
+                    displayCD = maxTime;
+                }
+            } else {
+                if (cd > 0) {
+                    showOverlay = true;
+                    pct = (cd / skill.cd) * 100;
+                }
+            }
+
+            if (showOverlay) {
+                el.style.height = pct + '%';
+                txt.style.display = 'block';
+                txt.innerText = displayCD.toFixed(1);
+            } else {
+                el.style.height = '0%';
+                txt.style.display = 'none';
+            }
+        });
+
+        const castBar = document.getElementById('player-cast-bar');
+        if (this.castingSkill) {
+            castBar.style.display = 'block';
+            document.getElementById('player-cast-fill').style.width = (this.castTimer / this.castMax * 100) + '%';
+        } else {
+            castBar.style.display = 'none';
+        }
+    }
+
+    addResource(amount) {
+        this.resource = Math.min(5, this.resource + amount);
+    }
+    
+    consumeResource(amount) {
+        if (this.resource >= amount) {
+            this.resource -= amount;
+            return true;
+        }
+        return false;
+    }
+
+    useSkill(key) {
+        const skill = SKILLS[key];
+        if (!skill) return;
+        
+        if (this.cooldowns[key] > 0) { showPlayerWarning("技能冷却中"); return; }
+        if (skill.gcd && this.gcdTimer > 0) { showPlayerWarning("尚未准备就绪 (GCD)"); return; }
+        if (skill.cost > 0 && this.resource < skill.cost) { showPlayerWarning("能量不足"); return; }
+        
+        if ((key === 'q' || key === 'e' || key === 'f') && (!currentTarget || currentTarget.hp <= 0)) {
+            showPlayerWarning("需要目标"); return;
+        }
+        
+        if (skill.range > 0) {
+            const dist = Math.sqrt(Math.pow(currentTarget.x - this.x, 2) + Math.pow(currentTarget.y - this.y, 2));
+            const rangeCheck = dist - currentTarget.radius - this.radius; 
+            if (rangeCheck > skill.range) { showPlayerWarning("超出射程"); return; }
+        }
+        
+        if (skill.cast > 0) { this.startCast(key); return; }
+        this.executeSkill(key);
+    }
+    
+    startCast(key) {
+        const skill = SKILLS[key];
+        this.castingSkill = key;
+        this.castMax = skill.cast;
+        this.castTimer = 0;
+    }
+    
+    interruptCast() {
+        if (this.castingSkill) {
+            this.castingSkill = null;
+            showPlayerWarning("读条中断");
+        }
+    }
+
+    executeSkill(key) {
+        const skill = SKILLS[key];
+
+        // 目标检查
+        if ((key === 'q' || key === 'e' || key === 'f') && (!currentTarget || currentTarget.hp <= 0)) {
+             showPlayerWarning("目标丢失");
+             return; 
+        }
+
+        if (skill.cost > 0) this.consumeResource(skill.cost);
+        
+        this.cooldowns[key] = skill.cd;
+        if (skill.gcd) this.gcdTimer = 1.0; // 基础GCD
+        if (key === 'e') this.gcdTimer = 0.5; // 圣灵特例
+        if (key === 'g') this.gcdTimer = 1.0; // G是GCD技能
+        
+        let finalDmg = skill.dmg;
+        if (this.buffs.damageUp > 0) finalDmg *= 1.25; // 25% 增伤
+        
+        if (key === 'q') {
+            currentTarget.takeDamage(finalDmg);
+            EffectManager.addSwordWave(this.x, this.y, Math.atan2(currentTarget.y - this.y, currentTarget.x - this.x));
+            this.addResource(0.2);
+        } else if (key === 'e') {
+            currentTarget.takeDamage(finalDmg);
+            EffectManager.addLaser(this.x, this.y, currentTarget.x, currentTarget.y);
+            this.addResource(0.2);
+        } else if (key === 'r') {
+            this.buffs.mitigation = 6.0;
+            CombatLog.add("盾阵开启! 减伤20%", "#3498db");
+        } else if (key === 'f') {
+            currentTarget.takeDamage(finalDmg);
+            this.buffs.damageUp = 10.0;
+            EffectManager.addGiantSword(currentTarget.x, currentTarget.y);
+            CombatLog.add("悔罪! 攻击力提升25%", "#f1c40f");
+            this.addResource(0.2);
+        } else if (key === 'g') {
+            // 深仁厚泽
+            this.hp = Math.min(this.maxHp, this.hp + 250);
+            EffectManager.addHealPillar(this.x, this.y);
+            CombatLog.add("深仁厚泽! 回复250 HP", "#2ecc71");
+        }
+    }
+
+    takeDamage(amount, sourceName="") {
+        if (this.buffs.mitigation > 0) amount *= 0.8;
+        this.hp -= amount;
+        
+        // --- 记录伤害 ---
+        if (amount > 0) {
+            const key = sourceName || "未知伤害";
+            if (!damageHistory[key]) damageHistory[key] = 0;
+            damageHistory[key] += amount;
+        }
+
+        // --- 死亡判定 ---
+        if (this.hp <= 0) {
+            this.hp = 0;
+            handleGameOver();
+        }
+
+        this.updateUI();
+        const bar = document.getElementById('player-hp-bar');
+        bar.style.backgroundColor = '#e74c3c';
+        setTimeout(() => bar.style.backgroundColor = '#000', 100);
+        let logText = `-${amount.toFixed(0)}`;
+        if (sourceName) logText += ` (${sourceName})`;
+        CombatLog.add(logText);
+    }
+
+    update(dt) {
+        if (this.gcdTimer > 0) this.gcdTimer -= dt;
+        for (let k in this.cooldowns) if (this.cooldowns[k] > 0) this.cooldowns[k] -= dt;
+        if (this.buffs.mitigation > 0) this.buffs.mitigation -= dt;
+        if (this.buffs.damageUp > 0) this.buffs.damageUp -= dt;
+        
+        if (this.debuffs.frozen > 0) { this.debuffs.frozen -= dt; this.updateUI(); return; }
+        if (this.debuffs.slow > 0) { this.debuffs.slow -= dt; this.speedMultiplier = 0.5; } else { this.speedMultiplier = 1.0; }
+        
+        if (this.debuffs.burn > 0) {
+            this.debuffs.burn -= dt; this.debuffs.burnTick += dt;
+            if (this.debuffs.burnTick >= 1.0) { this.takeDamage(50, "烧伤"); this.debuffs.burnTick = 0; }
+        }
+
+        if (this.rangeVizTimer > 0) this.rangeVizTimer -= dt;
+        
+        const move = Input.getAxis();
+        const isMoving = (move.x !== 0 || move.y !== 0);
+        
+        if (this.castingSkill) {
+            if (isMoving) this.interruptCast();
+            else {
+                this.castTimer += dt;
+                if (this.castTimer >= this.castMax) { this.executeSkill(this.castingSkill); this.castingSkill = null; }
+            }
+        }
+        
+        const currentSpeed = this.baseSpeed * this.speedMultiplier;
+        let nextX = this.x + move.x * currentSpeed * dt;
+        let nextY = this.y + move.y * currentSpeed * dt;
+        const distFromCenter = Math.sqrt(nextX*nextX + nextY*nextY);
+        if (distFromCenter > CONFIG.arenaRadius - this.radius) {
+            const angle = Math.atan2(nextY, nextX);
+            nextX = Math.cos(angle) * (CONFIG.arenaRadius - this.radius);
+            nextY = Math.sin(angle) * (CONFIG.arenaRadius - this.radius);
+        }
+        if (currentState === STATE.PRE_FIGHT || currentState === STATE.COUNTDOWN) {
+            const startX = 0; const startY = 250;
+            const distFromStart = Math.sqrt(Math.pow(nextX - startX, 2) + Math.pow(nextY - startY, 2));
+            if (distFromStart > CONFIG.startZoneRadius - this.radius) {
+                const angle = Math.atan2(nextY - startY, nextX - startX);
+                nextX = startX + Math.cos(angle) * (CONFIG.startZoneRadius - this.radius);
+                nextY = startY + Math.sin(angle) * (CONFIG.startZoneRadius - this.radius);
+            }
+        }
+
+        this.x = nextX; this.y = nextY;
+        
+        if (currentTarget && currentTarget.hp > 0) {
+            this.angle = Math.atan2(currentTarget.y - this.y, currentTarget.x - this.x);
+        } else {
+            this.angle = Math.atan2(Input.mouse.y - this.y, Input.mouse.x - this.x);
+        }
+        
+        if (this.debuffs.fireCountdown > 0) { this.debuffs.fireCountdown -= dt; if (this.debuffs.fireCountdown <= 0) this.debuffs.fireActive = 1.0; }
+        if (this.debuffs.fireActive > 0) {
+            this.debuffs.fireActive -= dt;
+            if (isMoving || Input.mouse.down) {
+                this.takeDamage(300, "至高之炎"); this.applyBurn(6.0); this.debuffs.fireActive = 0; 
+                EffectManager.addExplosion(this.x, this.y, 50, 'rgba(255, 50, 0, 0.8)');
+                showPlayerWarning("判定失败：止步！");
+            }
+        }
+        if (this.debuffs.iceCountdown > 0) { this.debuffs.iceCountdown -= dt; if (this.debuffs.iceCountdown <= 0) { this.debuffs.iceActive = 2.0; this.debuffs.stopTimer = 0; } }
+        if (this.debuffs.iceActive > 0) {
+            this.debuffs.iceActive -= dt;
+            if (!isMoving && !Input.mouse.down) this.debuffs.stopTimer += dt; else this.debuffs.stopTimer = 0; 
+            if (this.debuffs.stopTimer > 0.35) {
+                this.takeDamage(300, "至高之寒"); this.applyFrozen(4.0); this.debuffs.iceActive = 0;
+                EffectManager.addExplosion(this.x, this.y, 50, 'rgba(0, 200, 255, 0.8)');
+                showPlayerWarning("判定失败：动起来！");
+            }
+        }
+        this.updateUI();
+    }
+
+    draw(ctx) {
+        if (this.rangeVizTimer > 0) {
+            ctx.save(); ctx.translate(this.x, this.y); ctx.beginPath(); ctx.arc(0, 0, this.attackRange, 0, Math.PI * 2);
+            ctx.fillStyle = 'rgba(52, 152, 219, 0.2)'; ctx.fill(); ctx.strokeStyle = '#3498db'; ctx.lineWidth = 2; ctx.stroke(); ctx.restore();
+        }
+        
+        if (this.debuffs.fireActive > 0) {
+            ctx.save();
+            ctx.translate(this.x, this.y);
+            ctx.fillStyle = `rgba(231, 76, 60, ${0.3 + Math.random()*0.4})`;
+            ctx.beginPath();
+            roughCircle(ctx, 0, 0, this.radius + 20 + Math.random()*10, 5);
+            ctx.fill();
+            ctx.restore();
+        }
+        if (this.debuffs.iceActive > 0) {
+            ctx.save();
+            ctx.translate(this.x, this.y);
+            ctx.fillStyle = `rgba(52, 152, 219, ${0.3 + Math.random()*0.4})`;
+            ctx.beginPath();
+            roughCircle(ctx, 0, 0, this.radius + 20 + Math.random()*5, 2);
+            ctx.fill();
+            ctx.strokeStyle = 'white';
+            ctx.lineWidth = 1;
+            ctx.stroke();
+            ctx.restore();
+        }
+        
+        // 修改后的盾阵特效：灰色倒三角护罩 (比模型大)
+        if (this.buffs.mitigation > 0) {
+            ctx.save(); 
+            ctx.translate(this.x, this.y);
+            const alpha = 0.4 + Math.sin(Date.now() / 300) * 0.2; // 呼吸效果
+            
+            // 灰色护罩颜色
+            ctx.fillStyle = `rgba(169, 169, 169, ${alpha * 0.6})`; 
+            ctx.strokeStyle = `rgba(200, 200, 200, ${alpha})`;
+            ctx.lineWidth = 3;
+            
+            // 绘制倒三角
+            const size = this.radius + 25; // 比模型大一些
+            ctx.beginPath();
+            // 顶部宽边
+            ctx.moveTo(-size * 1.2, -size * 0.5); 
+            ctx.lineTo(size * 1.2, -size * 0.5);
+            // 底部尖端
+            ctx.lineTo(0, size * 1.5);
+            ctx.closePath();
+            
+            ctx.fill();
+            ctx.stroke();
+            
+            ctx.restore();
+        }
+        
+        if (this.buffs.damageUp > 0) {
+            ctx.save(); ctx.translate(this.x, this.y);
+            ctx.strokeStyle = 'rgba(255, 215, 0, 0.6)';
+            ctx.lineWidth = 2;
+            ctx.setLineDash([5, 5]);
+            ctx.beginPath(); ctx.arc(0, 0, this.radius + 8, 0, Math.PI*2); ctx.stroke();
+            ctx.setLineDash([]);
+            ctx.restore();
+        }
+
+        ctx.save(); ctx.translate(this.x, this.y); ctx.rotate(this.angle);
+        ctx.fillStyle = 'rgba(0,0,0,0.1)'; ctx.beginPath(); ctx.arc(2, 2, this.radius, 0, Math.PI*2); ctx.fill();
+        ctx.strokeStyle = CONFIG.colors.ink; ctx.lineWidth = 2;
+        
+        let bodyColor = '#fff';
+        if (this.debuffs.frozen > 0) bodyColor = '#85c1e9'; 
+        else if (this.debuffs.burn > 0) bodyColor = '#f1948a'; 
+        else if (this.debuffs.slow > 0) bodyColor = '#bdc3c7'; 
+        
+        ctx.fillStyle = bodyColor; ctx.beginPath(); ctx.arc(0, 0, this.radius, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+        
+        ctx.beginPath(); ctx.moveTo(-5, -5); ctx.lineTo(5, 5); ctx.moveTo(5, -5); ctx.lineTo(-5, 5); ctx.lineWidth = 1; ctx.stroke();
+
+        ctx.save(); ctx.translate(0, -this.radius - 2); ctx.rotate(-Math.PI/4); ctx.fillStyle = '#fff'; ctx.lineWidth = 2; ctx.beginPath(); ctx.ellipse(0, 0, 12, 6, 0, 0, Math.PI*2); ctx.fill(); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(-8, 0); ctx.lineTo(8, 0); ctx.moveTo(0, -4); ctx.lineTo(0, 4); ctx.stroke(); ctx.restore();
+
+        ctx.save(); ctx.translate(0, this.radius + 2); ctx.rotate(Math.PI/4 + Math.sin(Date.now() / 200) * 0.1);
+        ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(25, 0); ctx.lineTo(20, -2); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(5, -5); ctx.lineTo(5, 5); ctx.stroke(); ctx.restore();
+        ctx.restore();
+        
+        if (this.debuffs.fireCountdown > 0) {
+            ctx.save();
+            ctx.translate(this.x, this.y);
+            ctx.fillStyle = '#e74c3c';
+            ctx.textAlign = 'center';
+            ctx.font = 'bold 14px Arial';
+            ctx.fillText("准备静止", 0, -this.radius - 35);
+            ctx.font = 'bold 18px Arial';
+            ctx.fillText(this.debuffs.fireCountdown.toFixed(1), 0, -this.radius - 15);
+            ctx.restore();
+        } else if (this.debuffs.iceCountdown > 0) {
+            ctx.save();
+            ctx.translate(this.x, this.y);
+            ctx.fillStyle = '#3498db';
+            ctx.textAlign = 'center';
+            ctx.font = 'bold 14px Arial';
+            ctx.fillText("准备活动", 0, -this.radius - 35);
+            ctx.font = 'bold 18px Arial';
+            ctx.fillText(this.debuffs.iceCountdown.toFixed(1), 0, -this.radius - 15);
+            ctx.restore();
+        }
+    }
+}
+
+class Cross extends Entity {
+    constructor(x, y) {
+        super(x, y, 30); 
+        this.hp = 350; 
+        this.maxHp = 350;
+        this.active = false;
+        this.falling = true;
+        this.fallStartY = y - 800;
+        this.fallTimer = 0;
+        this.fallDuration = 1.0;
+    }
+    update(dt) {
+        if (this.hp <= 0) {
+            this.active = false;
+            if (currentTarget === this) currentTarget = null;
+            return;
+        }
+
+        if (this.falling) {
+            this.fallTimer += dt;
+            if (this.fallTimer >= this.fallDuration) {
+                this.falling = false;
+                this.active = true;
+                screenShake = 5;
+                EffectManager.addExplosion(this.x, this.y, 40, 'rgba(0,0,0,0.2)');
+            }
+        }
+    }
+
+    takeDamage(amount) {
+        if (!this.active) return;
+        this.hp -= amount;
+        if (this.hp <= 0) {
+            this.hp = 0;
+            EffectManager.addExplosion(this.x, this.y, 60, 'rgba(255,255,255,0.8)');
+        }
+    }
+
+    draw(ctx) {
+        if (this.hp <= 0) return;
+
+        let drawY = this.y;
+        if (this.falling) {
+            drawY = this.fallStartY + (this.y - this.fallStartY) * (this.fallTimer / this.fallDuration);
+        }
+
+        ctx.save();
+        ctx.translate(this.x, drawY);
+
+        if (this.active) {
+            const isSelected = (currentTarget === this);
+            ctx.strokeStyle = isSelected ? CONFIG.colors.selectedRing : CONFIG.colors.targetRing;
+            ctx.lineWidth = isSelected ? 3 : 1.5;
+            ctx.setLineDash([10, 5]);
+            
+            if (isSelected) {
+                 ctx.save();
+                 ctx.rotate(Date.now() / 500);
+            }
+            
+            ctx.beginPath();
+            ctx.arc(0, 0, this.radius + 10, 0, Math.PI*2);
+            ctx.stroke();
+            
+            if (isSelected) {
+                 ctx.restore();
+                 ctx.fillStyle = CONFIG.colors.selectedRing;
+                 ctx.beginPath();
+                 ctx.moveTo(0, -this.radius - 25);
+                 ctx.lineTo(-8, -this.radius - 40);
+                 ctx.lineTo(8, -this.radius - 40);
+                 ctx.fill();
+                 const floatY = Math.sin(Date.now()/200) * 3;
+                 ctx.translate(0, floatY);
+            }
+            ctx.setLineDash([]);
+        }
+
+        ctx.fillStyle = 'rgba(0,0,0,0.2)';
+        ctx.beginPath();
+        ctx.ellipse(0, 30, 20, 8, 0, 0, Math.PI*2);
+        ctx.fill();
+
+        ctx.fillStyle = '#fff';
+        ctx.strokeStyle = CONFIG.colors.ink;
+        ctx.lineWidth = 3;
+
+        ctx.beginPath();
+        ctx.rect(-10, -50, 20, 80);
+        ctx.fill();
+        ctx.stroke();
+
+        ctx.beginPath();
+        ctx.rect(-30, -30, 60, 20);
+        ctx.fill();
+        ctx.stroke();
+
+        ctx.beginPath();
+        ctx.moveTo(0, -40); ctx.lineTo(0, 20);
+        ctx.moveTo(-20, -20); ctx.lineTo(20, -20);
+        ctx.stroke();
+
+        if (this.active && this.hp < this.maxHp) {
+            ctx.fillStyle = 'black';
+            ctx.fillRect(-20, -60, 40, 5);
+            ctx.fillStyle = 'red';
+            ctx.fillRect(-20, -60, 40 * (this.hp/this.maxHp), 5);
+        }
+
+        ctx.restore();
+    }
+}
+
+class Boss extends Entity {
+    constructor() {
+        super(0, -150, CONFIG.bossRadius); 
+        this.hp = 11000;
+        this.maxHp = 11000;
+        this.name = "炽天使";
+        this.angle = Math.PI / 2; 
+        this.opacity = 1; 
+        this.floatOffset = 0;
+        this.wingCycle = 0;
+        this.isVisible = true;
+        this.isTargetable = true;
+        this.invulnerable = false; 
+        this.rotationState = { active: false, startAngle: 0, targetAngle: 0, timer: 0, duration: 0 };
+        this.fadeState = { active: false, type: 'none', timer: 0, duration: 1.0 };
+        this.casting = { active: false, name: "", timer: 0, duration: 0, onFinish: null };
+        this.timelineIndex = 0;
+        this.speechBubble = { text: "", timer: 0 };
+        this.crosses = [];
+        this.heat = 0;
+        this.heatTimer = 0;
+        this.inCrossPhase = false;
+        this.crossPhaseStartTime = 0;
+        this.crossPhaseDuration = 0;
+        this.crossAttackTimer = 0;
+        this.bossDiveTimer = 0;
+        this.actionId = 0; 
+        this.dashState = null;
+        this.loopCount = 0; // 新增循环计数器
+        
+        // New mechanic states
+        this.planet = { 
+            active: false, 
+            x: 0, 
+            y: 0, 
+            radius: 60, 
+            opacity: 0, 
+            currentIndex: 0, // 0-7 (Octagon corners)
+            targetIndex: 0,
+            sliding: false,
+            slideTimer: 0,
+            slideDuration: 0,
+            startX: 0, startY: 0
+        };
+        this.eyeState = { flashing: false, flashCount: 0, flashTimer: 0, totalFlashes: 0 };
+    }
+
+    fadeIn(duration = 1.0) {
+        this.isVisible = true; this.opacity = 0;
+        this.fadeState = { active: true, type: 'in', timer: 0, duration: duration };
+    }
+    fadeOut(duration = 1.0) {
+        this.fadeState = { active: true, type: 'out', timer: 0, duration: duration };
+    }
+    rotateTo(targetAngle, duration) {
+        let current = this.angle;
+        while(current <= -Math.PI) current += Math.PI*2; while(current > Math.PI) current -= Math.PI*2;
+        let target = targetAngle;
+        while(target <= -Math.PI) target += Math.PI*2; while(target > Math.PI) target -= Math.PI*2;
+        let diff = target - current;
+        if (diff > Math.PI) diff -= Math.PI*2; if (diff < -Math.PI) diff += Math.PI*2;
+        this.rotationState = { active: true, startAngle: current, targetAngle: current + diff, timer: 0, duration: duration };
+    }
+    startCast(skillName, duration, onFinish) {
+        this.casting.active = true; this.casting.name = skillName; this.casting.timer = 0; this.casting.duration = duration; this.casting.onFinish = onFinish;
+        const container = document.getElementById('boss-cast-bar-container');
+        const text = document.getElementById('boss-cast-bar-text');
+        container.style.display = 'block'; text.innerText = skillName;
+    }
+    interruptCast() {
+        this.casting.active = false;
+        document.getElementById('boss-cast-bar-container').style.display = 'none';
+    }
+    update(dt) {
+        this.floatOffset = Math.sin(Date.now() / 500) * 10;
+        this.wingCycle += dt * 2;
+        if (this.dashState) {
+            const dx = player.x - this.x; const dy = player.y - this.y; const dist = Math.sqrt(dx*dx + dy*dy);
+            if (dist < (this.radius + player.radius)) {
+                 if (!this.dashDamageCD) this.dashDamageCD = 0;
+                 this.dashDamageCD -= dt;
+                 if (this.dashDamageCD <= 0) {
+                     player.takeDamage(300, "Boss冲撞");
+                     this.dashDamageCD = 0.5;
+                     EffectManager.addExplosion(player.x, player.y, 40, 'rgba(255,0,0,0.5)');
+                 }
+            }
+        }
+        
+        // Update Planet Fade In/Out
+        if (this.planet.active) {
+             if (this.planet.opacity < 1.0) this.planet.opacity = Math.min(1.0, this.planet.opacity + dt);
+        }
+        
+        // Update Planet Sliding
+        if (this.planet.sliding) {
+             this.planet.slideTimer += dt;
+        }
+        
+        // Update Eye Flash
+        if (this.eyeState.flashing) {
+            this.eyeState.flashTimer += dt;
+        }
+
+        if (currentState === STATE.COMBAT) {
+            if (this.fadeState.active) {
+                this.fadeState.timer += dt;
+                const t = Math.min(1, this.fadeState.timer / this.fadeState.duration);
+                if (this.fadeState.type === 'in') this.opacity = t; else this.opacity = 1 - t;
+                if (t >= 1) {
+                    this.fadeState.active = false;
+                    if (this.fadeState.type === 'out') { this.isVisible = false; this.isTargetable = false; if (currentTarget === this) currentTarget = null; }
+                    else { this.isTargetable = true; }
+                }
+            }
+            if (this.rotationState.active) {
+                this.rotationState.timer += dt;
+                const t = Math.min(1, this.rotationState.timer / this.rotationState.duration);
+                const ease = t < .5 ? 2 * t * t : -1 + (4 - 2 * t) * t;
+                this.angle = this.rotationState.startAngle + (this.rotationState.targetAngle - this.rotationState.startAngle) * ease;
+                if (t >= 1) {
+                    this.rotationState.active = false;
+                    this.angle = this.rotationState.targetAngle;
+                    while(this.angle <= -Math.PI) this.angle += Math.PI*2; while(this.angle > Math.PI) this.angle -= Math.PI*2;
+                }
+            }
+            if (this.casting.active) {
+                this.casting.timer += dt;
+                const pct = Math.min(100, (this.casting.timer / this.casting.duration) * 100);
+                document.getElementById('boss-cast-bar-fill').style.width = pct + '%';
+                if (this.casting.timer >= this.casting.duration) {
+                    this.casting.active = false;
+                    document.getElementById('boss-cast-bar-container').style.display = 'none';
+                    if (this.casting.onFinish) this.casting.onFinish();
+                }
+            } else if (this.inCrossPhase) { this.updateCrossPhase(dt); } 
+            else { this.processTimeline(); }
+        }
+        for (const c of this.crosses) c.update(dt);
+        this.updateUI();
+    }
+    takeDamage(amount) {
+        if (this.invulnerable) return; 
+        this.hp -= amount;
+        // --- Boss 死亡判定 ---
+        if (this.hp < 0) {
+            this.hp = 0;
+            handleVictory();
+        }
+    }
+    updateUI() {
+        const pct = (this.hp / this.maxHp) * 100;
+        document.getElementById('boss-hp-bar').style.width = pct + '%';
+        document.getElementById('boss-hp-text').innerText = `${this.hp.toFixed(0)} / ${this.maxHp.toFixed(0)} (${pct.toFixed(2)}%)`;
+        document.getElementById('boss-invuln-tag').style.display = this.invulnerable ? 'block' : 'none';
+        if (this.inCrossPhase) {
+            document.getElementById('heat-gauge-wrapper').style.display = 'flex';
+            document.getElementById('heat-gauge-label').style.display = 'block';
+            document.getElementById('heat-gauge-fill').style.height = this.heat + '%';
+        } else {
+            document.getElementById('heat-gauge-wrapper').style.display = 'none';
+            document.getElementById('heat-gauge-label').style.display = 'none';
+        }
+    }
+    say(text, duration = 3) { this.speechBubble.text = text; this.speechBubble.timer = duration; }
+    
+    getOctagonCorner(index) {
+        const safeIndex = (index % 8 + 8) % 8; // Handle negative wrap
+        const angle = safeIndex * (Math.PI / 4); // 0, 45, 90...
+        const r = CONFIG.arenaRadius;
+        return { x: Math.cos(angle) * r, y: Math.sin(angle) * r };
+    }
+
+    processTimeline() {
+        if (gameTime >= 1.0 && this.timelineIndex === 0) {
+            this.timelineIndex++;
+            this.say("接受审判吧！", 2);
+            this.startCast("裁决之雷", 0.8, () => {
+                this.executeJudgmentBolt();
+                Scheduler.add(2.0, () => { this.startObliterationLightSequence(); });
+            });
+        }
+    }
+    executeJudgmentBolt() {
+        const numStrikes = 8; const interval = 0.5; const delayDuration = 0.35; const damageRadius = player.radius * 1.7; const damage = 400;
+        for (let i = 0; i < numStrikes; i++) {
+            Scheduler.add(i * interval, () => {
+                const targetX = player.x; const targetY = player.y;
+                TelegraphManager.addCircle(targetX, targetY, damageRadius + 15, delayDuration, (telegraph) => {
+                    EffectManager.addLightning(telegraph.x, telegraph.y, 300);
+                    const dx = player.x - telegraph.x; const dy = player.y - telegraph.y; const dist = Math.sqrt(dx*dx + dy*dy);
+                    if (dist < (telegraph.radius + player.radius)) player.takeDamage(damage, "裁决之雷");
+                });
+            });
+        }
+    }
+    startObliterationLightSequence() {
+        this.say("湮灭！", 1);
+        TelegraphManager.addCone(this.x, this.y, 600, this.angle, 130 * Math.PI/180, 1.0, () => {});
+        this.startCast("湮灭之光", 1.0, () => {
+            this.dealConeDamage(800, 0.5);
+            EffectManager.addShockwave(this.x, this.y, 600, this.angle, 130 * Math.PI/180);
+            Scheduler.add(1.0, () => {
+                const newAngle = this.angle + Math.PI;
+                this.rotateTo(newAngle, 0.3);
+                Scheduler.add(0.3, () => {
+                    this.dealConeDamage(800, 0.5);
+                    EffectManager.addShockwave(this.x, this.y, 600, this.angle, 130 * Math.PI/180);
+                    // Add rotation back to bottom
+                    Scheduler.add(0.5, () => { this.rotateTo(Math.PI / 2, 0.5); });
+                    Scheduler.add(1.0, () => { this.startSupernova(); });
+                });
+            });
+        });
+    }
+    dealConeDamage(damage, slowDuration) {
+        const fov = 130 * Math.PI / 180; const range = 600; 
+        EffectManager.addShockwave(this.x, this.y, range, this.angle, fov);
+        const dx = player.x - this.x; const dy = player.y - this.y; const dist = Math.sqrt(dx*dx + dy*dy);
+        if (dist <= range) {
+            const angleToPlayer = Math.atan2(dy, dx);
+            let angleDiff = angleToPlayer - this.angle;
+            while (angleDiff <= -Math.PI) angleDiff += Math.PI * 2; while (angleDiff > Math.PI) angleDiff -= Math.PI * 2;
+            if (Math.abs(angleDiff) <= fov / 2) { player.takeDamage(damage, "湮灭之光"); player.applySlow(3.0); }
+        }
+    }
+    startSupernova() {
+        this.say("星辰，陨落！", 1.5);
+        const r = 350;
+        const candidates = [ { angle: -Math.PI / 2, name: 'Top' }, { angle: -3 * Math.PI / 4, name: 'Top-Left' }, { angle: -Math.PI / 4, name: 'Top-Right' } ];
+        const choice = candidates[Math.floor(Math.random() * candidates.length)];
+        const tx = Math.cos(choice.angle) * r; const ty = Math.sin(choice.angle) * r;
+        this.startCast("超新星", 0.5, () => {
+            const impactDuration = 3.0;
+            TelegraphManager.addProximity(tx, ty, impactDuration, (t) => {
+                this.resolveSupernovaDamage(tx, ty);
+                Scheduler.add(1.0, () => { this.startSolarMechanic(); });
+            });
+            EffectManager.addMeteor(tx, ty, impactDuration);
+        });
+    }
+    resolveSupernovaDamage(tx, ty) {
+        screenShake = 30; EffectManager.addExplosion(tx, ty, 300);
+        const dx = player.x - tx; const dy = player.y - ty; const distPx = Math.sqrt(dx*dx + dy*dy);
+        const unitDist = CONFIG.playerRadius * 2; const units = distPx / unitDist;
+        let damage = 0;
+        if (units < 3.0) damage = 99999; else if (units >= 3.0 && units < 6.0) damage = 500; else damage = 200;
+        player.takeDamage(damage, "超新星");
+    }
+    startSolarMechanic() {
+        const isRing = Math.random() > 0.5; const skillName = isRing ? "日之环" : "日之心";
+        const safeRadius = 6 * (CONFIG.playerRadius * 2); const damageRadius = 6 * (CONFIG.playerRadius * 2); 
+        this.say(isRing ? "拥抱烈阳！" : "烈阳核心！", 1.5);
+        this.startCast(skillName, 2.0, () => {
+            const telegraphDuration = 0.1;
+            if (isRing) {
+                TelegraphManager.addDonut(this.x, this.y, safeRadius, 800, telegraphDuration, () => {
+                    const dist = Math.sqrt(Math.pow(player.x - this.x, 2) + Math.pow(player.y - this.y, 2));
+                    if (dist > safeRadius) player.takeDamage(600, "日之环");
+                    EffectManager.addShockwave(this.x, this.y, 800, 0, Math.PI*4);
+                });
+            } else {
+                TelegraphManager.addCircle(this.x, this.y, damageRadius, telegraphDuration, () => {
+                    const dist = Math.sqrt(Math.pow(player.x - this.x, 2) + Math.pow(player.y - this.y, 2));
+                    if (dist <= damageRadius) player.takeDamage(600, "日之心");
+                    EffectManager.addExplosion(this.x, this.y, damageRadius);
+                });
+            }
+            Scheduler.add(1.5, () => { this.startCrossPhase(); });
+        });
+    }
+    flyAway() { this.say("你们无法战胜神圣！", 2); this.fadeOut(1.5); }
+    returnToArena() {
+        this.x = 0; this.y = -150; this.angle = Math.PI/2; this.fadeIn(1.5);
+        this.say("审判继续...", 2); EffectManager.addExplosion(this.x, this.y, 100, 'rgba(255,255,255,0.8)');
+        this.startGospelConfession();
+    }
+    startCrossPhase() {
+        this.flyAway(); this.inCrossPhase = true; this.invulnerable = true; this.heat = 0; this.heatTimer = 0;
+        this.crossPhaseStartTime = gameTime; this.crossAttackTimer = 0; this.bossDiveTimer = 0; this.actionId++; 
+        const angles = [Math.PI/4, 3*Math.PI/4, 5*Math.PI/4, 7*Math.PI/4]; const r = 250;
+        for(let i=0; i<4; i++) {
+            const a = angles[i]; const cx = Math.cos(a) * r; const cy = Math.sin(a) * r;
+            Scheduler.add(i * 0.5, () => { this.crosses.push(new Cross(cx, cy)); });
+        }
+    }
+    updateCrossPhase(dt) {
+        const aliveCrosses = this.crosses.filter(c => c.active && c.hp > 0);
+        if (this.crosses.length === 4 && aliveCrosses.length === 0) {
+            this.inCrossPhase = false; this.crossPhaseDuration = gameTime - this.crossPhaseStartTime; this.crosses = []; this.actionId++; this.interruptCast();
+            if (this.isVisible) { this.fadeOut(0.5); Scheduler.add(0.5, () => this.returnToArena()); } else { this.returnToArena(); }
+            return;
+        }
+        this.heatTimer += dt;
+        if (this.heatTimer >= 0.5) { this.heatTimer = 0; this.heat += 1; if (this.heat >= 100) { this.heat = 100; player.takeDamage(99999, "高温"); } }
+        this.crossAttackTimer += dt;
+        if (this.crossAttackTimer >= 5.0) {
+            this.crossAttackTimer = 0;
+            if (aliveCrosses.length > 0) {
+                const attackers = []; const pool = [...aliveCrosses]; const count = Math.min(2, pool.length);
+                for(let i=0; i<count; i++) { const idx = Math.floor(Math.random() * pool.length); attackers.push(pool[idx]); pool.splice(idx, 1); }
+                attackers.forEach(cross => {
+                    const angleToPlayer = Math.atan2(player.y - cross.y, player.x - cross.x); const width = CONFIG.playerRadius * 4; const length = 1000;
+                    TelegraphManager.addRect(cross.x, cross.y, length, width, angleToPlayer, 1.5, (t) => {
+                        const dx = player.x - t.x; const dy = player.y - t.y;
+                        const localX = dx * Math.cos(-t.angle) - dy * Math.sin(-t.angle); const localY = dx * Math.sin(-t.angle) + dy * Math.cos(-t.angle);
+                        if (localX >= 0 && localX <= t.length && Math.abs(localY) <= t.width/2) { player.takeDamage(400, "十字光束"); }
+                        const step = 150;
+                        for (let d = 50; d < t.length; d += step) {
+                            const ex = t.x + Math.cos(t.angle) * d; const ey = t.y + Math.sin(t.angle) * d;
+                            EffectManager.addExplosion(ex, ey, t.width, 'rgba(255, 100, 50, 0.6)');
+                        }
+                    });
+                });
+            }
+        }
+        this.bossDiveTimer += dt;
+        if (this.bossDiveTimer >= 15.0) { this.bossDiveTimer = 0; this.doPseudoObliteration(); }
+    }
+    doPseudoObliteration() {
+        const currentId = this.actionId;
+        const corners = [Math.PI/4, 3*Math.PI/4, 5*Math.PI/4, 7*Math.PI/4];
+        const idx = Math.floor(Math.random() * corners.length);
+        const angle = corners[idx]; const r = CONFIG.arenaRadius; const bx = Math.cos(angle) * r; const by = Math.sin(angle) * r; const targetAngle = angle + Math.PI;
+        this.x = bx; this.y = by; this.angle = targetAngle; this.fadeIn(0.5); EffectManager.addExplosion(bx, by, 80, 'rgba(255,255,255,0.8)');
+        Scheduler.add(2.0, () => {
+            if (this.actionId !== currentId) return;
+            this.startCast("伪-湮灭之光", 1.5, () => {
+                if (this.actionId !== currentId) return;
+                TelegraphManager.addCone(bx, by, 1000, targetAngle, 60 * Math.PI/180, 1.0, () => {});
+                Scheduler.add(1.0, () => {
+                    if (this.actionId !== currentId) return;
+                    EffectManager.addShockwave(bx, by, 1000, targetAngle, 60 * Math.PI/180);
+                    const fov = 60 * Math.PI / 180; const dx = player.x - bx; const dy = player.y - by; const dist = Math.sqrt(dx*dx + dy*dy);
+                    const angleToPlayer = Math.atan2(dy, dx); let angleDiff = angleToPlayer - targetAngle;
+                    while (angleDiff <= -Math.PI) angleDiff += Math.PI * 2; while (angleDiff > Math.PI) angleDiff -= Math.PI * 2;
+                    if (Math.abs(angleDiff) <= fov / 2) { player.takeDamage(500, "伪-湮灭之光"); }
+                    this.fadeOut(1.0); 
+                });
+            });
+        });
+    }
+    startGospelConfession() {
+        this.invulnerable = true; this.say("以此告解，洗净罪孽...", 5);
+        this.startCast("福音告解", 6.0, () => {
+            const damage = 18 * this.crossPhaseDuration; screenShake = 40; EffectManager.addBlackFlash(2.0); 
+            player.takeDamage(damage, "福音告解"); this.invulnerable = false;
+            Scheduler.add(1.5, () => this.startSupremeMechanic());
+        });
+    }
+    startSupremeMechanic() {
+        const isFire = Math.random() > 0.5; const skillName = isFire ? "至高之炎" : "至高之寒";
+        this.say(isFire ? "燃烧吧，妄动者！" : "冻结吧，静止者！", 1.5);
+        this.startCast(skillName, 1.5, () => {
+            if (isFire) player.applySupremeFire(); else player.applySupremeIce();
+            Scheduler.add(5.0, () => this.startHolySealSequence());
+        });
+    }
+    startHolySealSequence() {
+        this.say("圣印……显现！", 1.5);
+        this.startCast("圣印", 1.2, () => {
+            this.spawnHolySeal();
+            Scheduler.add(0.5, () => {
+                this.startCast("圣印", 1.2, () => {
+                    this.spawnHolySeal();
+                    this.startJudgmentBoltBeta();
+                });
+            });
+        });
+    }
+    
+    // --- 圣印生成逻辑更新 (Retry) ---
+    spawnHolySeal() {
+        const centerRadius = 8 * UNIT_LEN; 
+        const width = 3 * UNIT_LEN;
+        const minR = centerRadius - width / 2;
+        const maxR = centerRadius + width / 2;
+        const minDistance = 3 * UNIT_LEN; // 90px
+
+        let bestX = 0, bestY = 0;
+        let valid = false;
+        
+        // 尝试 20 次找到一个合适位置
+        for(let i=0; i<20; i++) {
+            const angle = Math.random() * Math.PI * 2;
+            const dist = minR + Math.random() * (maxR - minR);
+            const candX = Math.cos(angle) * dist;
+            const candY = Math.sin(angle) * dist;
+            
+            // 检查距离
+            let tooClose = false;
+            // 合并所有现有圣印列表检查
+            const allSeals = [...HolySealManager.seals, ...HolySealManager.alphaSeals];
+            for (const s of allSeals) {
+                if (!s.active) continue;
+                const dx = s.x - candX;
+                const dy = s.y - candY;
+                if (Math.sqrt(dx*dx + dy*dy) < minDistance) {
+                    tooClose = true;
+                    break;
+                }
+            }
+            
+            if (!tooClose) {
+                bestX = candX;
+                bestY = candY;
+                valid = true;
+                break;
+            }
+        }
+        
+        // 如果实在找不到，就用最后一次尝试的(或0,0但不太可能完全重叠)
+        if (!valid) {
+             const angle = Math.random() * Math.PI * 2;
+             const dist = minR + Math.random() * (maxR - minR);
+             bestX = Math.cos(angle) * dist;
+             bestY = Math.sin(angle) * dist;
+        }
+
+        const type = Math.random() > 0.5 ? 'plus' : 'cross';
+        HolySealManager.addSeal(bestX, bestY, type);
+    }
+    
+    startJudgmentBoltBeta() {
+        this.say("雷霆，追踪罪人！", 1.5);
+        this.startCast("裁决之雷β", 1.2, () => {
+            const totalStrikes = 3; const interval = 1.2; const radius = (4.5 * UNIT_LEN) / 2;
+            for (let i = 0; i < totalStrikes; i++) {
+                Scheduler.add(i * interval, () => {
+                    HolySealManager.addPuddle(player.x, player.y, radius);
+                    if (i === totalStrikes - 1) { Scheduler.add(0.1, () => this.startAnnihilationBeta()); }
+                });
+            }
+        });
+    }
+    startAnnihilationBeta() {
+        const targetAngle = Math.random() > 0.5 ? Math.PI : 0; const isTrue = Math.random() > 0.5; const skillName = isTrue ? "正湮灭之光β" : "反湮灭之光β";
+        this.rotateTo(targetAngle, 0.5);
+        Scheduler.add(0.5, () => {
+            this.say(skillName, 2.0);
+            this.startCast(skillName, 2.0, () => {
+                const attackAngle = isTrue ? this.angle : (this.angle + Math.PI); const range = 1000; const fov = Math.PI; 
+                TelegraphManager.addCone(this.x, this.y, range, attackAngle, fov, 0.5, () => {
+                    this.dealConeDamageDirect(range, attackAngle, fov, 500);
+                    EffectManager.addShockwave(this.x, this.y, range, attackAngle, fov);
+                    for (const p of HolySealManager.puddles) {
+                        const dx = player.x - p.x; const dy = player.y - p.y;
+                        if (Math.sqrt(dx*dx + dy*dy) < p.radius) player.takeDamage(400, "裁决之雷β爆炸");
+                        EffectManager.addExplosion(p.x, p.y, p.radius, 'rgba(100, 100, 255, 0.8)');
+                    }
+                    // Rotate back
+                    this.rotateTo(Math.PI / 2, 0.5);
+                    HolySealManager.clearPuddles();
+                    Scheduler.add(0.5, () => this.resolveHolySealExtension());
+                });
+            });
+        });
+    }
+    dealConeDamageDirect(range, angle, fov, damage) {
+        const dx = player.x - this.x; const dy = player.y - this.y; const dist = Math.sqrt(dx*dx + dy*dy);
+        if (dist <= range) {
+            const angleToPlayer = Math.atan2(dy, dx); let angleDiff = angleToPlayer - angle;
+            while (angleDiff <= -Math.PI) angleDiff += Math.PI * 2; while (angleDiff > Math.PI) angleDiff -= Math.PI * 2;
+            if (Math.abs(angleDiff) <= fov / 2) player.takeDamage(damage, "湮灭之光β");
+        }
+    }
+    resolveHolySealExtension() {
+        const seals = HolySealManager.seals; const width = 2 * UNIT_LEN; const length = 2000; 
+        for (const s of seals) {
+            if (!s.active) continue;
+            let angles = (s.type === 'plus') ? [0, Math.PI/2] : [Math.PI/4, 3*Math.PI/4];
+            for (const baseAngle of angles) {
+                const dirs = [baseAngle, baseAngle + Math.PI];
+                for (const dir of dirs) {
+                    TelegraphManager.addRect(s.x, s.y, length, width, dir, 0.5, (t) => {
+                        const dx = player.x - t.x; const dy = player.y - t.y;
+                        const localX = dx * Math.cos(-t.angle) - dy * Math.sin(-t.angle); const localY = dx * Math.sin(-t.angle) + dy * Math.cos(-t.angle);
+                        if (localX >= 0 && localX <= t.length && Math.abs(localY) <= t.width/2) player.takeDamage(500, "圣印爆发");
+                        const step = 100;
+                        for(let d=50; d<t.length; d+=step) {
+                             const ex = t.x + Math.cos(t.angle)*d; const ey = t.y + Math.sin(t.angle)*d;
+                             EffectManager.addExplosion(ex, ey, t.width/1.5, 'rgba(255, 50, 50, 0.5)');
+                        }
+                    });
+                }
+            }
+        }
+        Scheduler.add(0.6, () => { HolySealManager.clearSeals(); this.startHolySealAlphaSequence(); });
+    }
+    startHolySealAlphaSequence() {
+        HolySealManager.clearAlphaSeals();
+        const totalSeals = 3; const castTime = 1.2; const waitTime = 0.5;
+        for (let i = 0; i < totalSeals; i++) {
+            Scheduler.add(i * (castTime + waitTime), () => {
+                this.startCast("圣印α", castTime, () => {
+                    this.spawnHolySealAlpha();
+                    if (i === totalSeals - 1) Scheduler.add(0.5, () => this.startGrandRelease());
+                });
+            });
+        }
+    }
+    spawnHolySealAlpha() {
+        const centerRadius = 8 * UNIT_LEN; const width = 3 * UNIT_LEN; const minR = centerRadius - width / 2; const maxR = centerRadius + width / 2;
+        const minDistance = 3 * UNIT_LEN; 
+        let bestX = 0, bestY = 0;
+        let valid = false;
+        for(let i=0; i<20; i++) {
+            const angle = Math.random() * Math.PI * 2;
+            const dist = minR + Math.random() * (maxR - minR);
+            const candX = Math.cos(angle) * dist; const candY = Math.sin(angle) * dist;
+            let tooClose = false;
+            const allSeals = [...HolySealManager.seals, ...HolySealManager.alphaSeals];
+            for (const s of allSeals) {
+                if (!s.active) continue;
+                const dx = s.x - candX; const dy = s.y - candY;
+                if (Math.sqrt(dx*dx + dy*dy) < minDistance) { tooClose = true; break; }
+            }
+            if (!tooClose) { bestX = candX; bestY = candY; valid = true; break; }
+        }
+        if (!valid) {
+             const angle = Math.random() * Math.PI * 2; const dist = minR + Math.random() * (maxR - minR);
+             bestX = Math.cos(angle) * dist; bestY = Math.sin(angle) * dist;
+        }
+        const type = Math.random() > 0.5 ? 'plus' : 'cross';
+        HolySealManager.addSeal(bestX, bestY, type, true);
+    }
+    startGrandRelease() {
+        this.say("大释放……开启！", 2.0);
+        const corners = [];
+        for (let i = 0; i < 8; i++) {
+            const a = i * (Math.PI * 2) / 8; corners.push({ x: Math.cos(a) * CONFIG.arenaRadius, y: Math.sin(a) * CONFIG.arenaRadius, idx: i });
+        }
+        let currentIdx = Math.floor(Math.random() * 8);
+        const pathIndices = [currentIdx];
+        let visited = new Set([currentIdx]);
+        for (let i = 0; i < 3; i++) {
+            const nextCandidates = [];
+            const c1 = (currentIdx + 3) % 8; const c2 = (currentIdx - 3 + 8) % 8;
+            if (!visited.has(c1)) nextCandidates.push(c1); if (!visited.has(c2)) nextCandidates.push(c2);
+            let nextIdx;
+            if (nextCandidates.length > 0) nextIdx = nextCandidates[Math.floor(Math.random() * nextCandidates.length)];
+            else nextIdx = (Math.random() > 0.5) ? c1 : c2;
+            pathIndices.push(nextIdx); visited.add(nextIdx); currentIdx = nextIdx;
+        }
+        const pathPoints = pathIndices.map(idx => corners[idx]);
+        const castDuration = 5.5;
+        this.startCast("大释放", castDuration, () => {
+            this.invulnerable = true; this.x = pathPoints[0].x; this.y = pathPoints[0].y;
+            this.executeGrandReleaseDashes(pathPoints, 0);
+        });
+        for (let i = 0; i < 3; i++) {
+            if (i + 1 >= pathPoints.length) break;
+            const p1 = pathPoints[i]; const p2 = pathPoints[i+1];
+            Scheduler.add(1.0 + i * 1.2, () => {
+                const angle = Math.atan2(p2.y - p1.y, p2.x - p1.x); const dist = Math.sqrt(Math.pow(p2.x - p1.x, 2) + Math.pow(p2.y - p1.y, 2)); const width = CONFIG.bossRadius * 2;
+                const duration = 4.5 - (i * 0.5); 
+                TelegraphManager.addRect(p1.x, p1.y, dist, width, angle, duration, () => {});
+            });
+        }
+    }
+    executeGrandReleaseDashes(points, step) {
+        if (step >= points.length - 1) {
+            this.fadeOut(0.5);
+            Scheduler.add(0.5, () => {
+                this.x = 0; this.y = -150; 
+                this.angle = Math.PI / 2; 
+                this.invulnerable = false; this.fadeIn(0.5); this.say("终焉已至...", 2);
+                
+                // Transition to Final Phase
+                Scheduler.add(2.0, () => this.startFinalPhaseSequence());
+            });
+            return;
+        }
+        const p1 = points[step]; const p2 = points[step+1]; const angle = Math.atan2(p2.y - p1.y, p2.x - p1.x);
+        const dashDuration = 0.4; 
+        this.x = p1.x; this.y = p1.y; this.angle = angle + Math.PI/2; 
+        const moveTask = {
+            duration: dashDuration, timer: 0, startX: p1.x, startY: p1.y, endX: p2.x, endY: p2.y,
+            update: (dt) => {
+                moveTask.timer += dt;
+                const t = Math.min(1, moveTask.timer / moveTask.duration);
+                this.x = moveTask.startX + (moveTask.endX - moveTask.startX) * t; this.y = moveTask.startY + (moveTask.endY - moveTask.startY) * t;
+                if (Math.random() > 0.3) EffectManager.addExplosion(this.x, this.y, 40, 'rgba(255,50,50,0.3)');
+                if (t >= 1) return true; return false;
+            }
+        };
+        this.dashState = moveTask;
+        Scheduler.add(dashDuration, () => {
+            this.dashState = null; 
+            HolySealManager.triggerAlphaResponse(step);
+            this.executeGrandReleaseDashes(points, step + 1);
+        });
+    }
+    
+    // --- 最终阶段逻辑 ---
+    startFinalPhaseSequence() {
+        this.startCast("裁决之雷", 1.5, () => {
+            this.executeFinalJudgmentBolt();
+            Scheduler.add(2.0, () => this.startFinalObliterationSequence());
+        });
+    }
+    
+    executeFinalJudgmentBolt() {
+        const numStrikes = 6; const interval = 0.5; const delayDuration = 0.35; 
+        const damageRadius = 1.7 * CONFIG.playerRadius; // 玩家模型半径 * 1.7 (如果指直径倍率则需 * 2，这里按原比例)
+        const damage = 300;
+        for (let i = 0; i < numStrikes; i++) {
+            Scheduler.add(i * interval, () => {
+                const targetX = player.x; const targetY = player.y;
+                TelegraphManager.addCircle(targetX, targetY, damageRadius, delayDuration, (telegraph) => {
+                    EffectManager.addLightning(telegraph.x, telegraph.y, 300);
+                    const dx = player.x - telegraph.x; const dy = player.y - telegraph.y; const dist = Math.sqrt(dx*dx + dy*dy);
+                    if (dist < (telegraph.radius + player.radius)) player.takeDamage(damage, "裁决之雷");
+                });
+            });
+        }
+    }
+    
+    startFinalObliterationSequence() {
+        this.say("湮灭之光！", 1);
+        this.startCast("湮灭之光", 1.0, () => {
+            // Add Telegraph 1.2s
+            const fov = 130 * Math.PI / 180;
+            const range = 600;
+            TelegraphManager.addCone(this.x, this.y, range, this.angle, fov, 1.2, () => {
+                // Hit 1
+                this.dealConeDamage(800, 0.5); 
+                EffectManager.addShockwave(this.x, this.y, range, this.angle, fov);
+                
+                // Delay before turn
+                Scheduler.add(1.0, () => {
+                    const newAngle = this.angle + Math.PI;
+                    this.rotateTo(newAngle, 0.3);
+                    Scheduler.add(0.3, () => {
+                        this.dealConeDamage(800, 0.5);
+                        EffectManager.addShockwave(this.x, this.y, range, this.angle, fov);
+                        
+                        Scheduler.add(0.5, () => {
+                            this.rotateTo(Math.PI/2, 0.5);
+                            Scheduler.add(2.0, () => this.startDoubleSupernova());
+                        });
+                    });
+                });
+            });
+        });
+    }
+    
+    startDoubleSupernova() {
+        this.say("双重星陨！", 1.5);
+        this.startCast("双重超新星", 0.5, () => {
+            // 选点
+            const topCorners = [5, 6, 7];
+            const botCorners = [1, 2, 3];
+            
+            const topIdx = topCorners[Math.floor(Math.random() * 3)];
+            const botIdx = botCorners[Math.floor(Math.random() * 3)];
+            
+            const r = CONFIG.arenaRadius; 
+            
+            const p1 = { x: Math.cos(topIdx * Math.PI/4) * r, y: Math.sin(topIdx * Math.PI/4) * r };
+            const p2 = { x: Math.cos(botIdx * Math.PI/4) * r, y: Math.sin(botIdx * Math.PI/4) * r };
+            
+            // 修改时长为 3.0s
+            const duration = 3.0;
+            
+            // 视觉效果：红波扩散
+            EffectManager.addRedShockwave(p1.x, p1.y);
+            EffectManager.addRedShockwave(p2.x, p2.y);
+            
+            // 巨大流星 (同步时长 3.0s)
+            EffectManager.addMeteor(p1.x, p1.y, duration);
+            EffectManager.addMeteor(p2.x, p2.y, duration);
+            
+            // 警示圈 (Proximity)
+            TelegraphManager.addProximity(p1.x, p1.y, duration, () => {});
+            TelegraphManager.addProximity(p2.x, p2.y, duration, () => {
+                // 伤害判定 (一次处理两个)
+                this.resolveDoubleSupernova(p1, p2);
+            });
+        });
+    }
+    
+    resolveDoubleSupernova(p1, p2) {
+        screenShake = 50;
+        EffectManager.addExplosion(p1.x, p1.y, 400);
+        EffectManager.addExplosion(p2.x, p2.y, 400);
+        
+        const calcDmg = (px, py, targetX, targetY) => {
+            const dist = Math.sqrt(Math.pow(px - targetX, 2) + Math.pow(py - targetY, 2));
+            // 1 unit distance = UNIT_LEN (30px)
+            const distUnits = dist / UNIT_LEN;
+            
+            if (distUnits < 2.5) return 99999;
+            if (distUnits < 6.0) return 400;
+            return 150;
+        };
+        
+        const dmg1 = calcDmg(player.x, player.y, p1.x, p1.y);
+        const dmg2 = calcDmg(player.x, player.y, p2.x, p2.y);
+        
+        player.takeDamage(dmg1, "超新星(上)");
+        player.takeDamage(dmg2, "超新星(下)");
+        
+        // --- Chain to New Mechanic ---
+        // Wait 2 seconds after explosion visual settles (total 4s from start of phase, but here we use scheduler relative to now)
+        // The prompt says "Wait 2 seconds" after the phase ends.
+        Scheduler.add(3.0, () => {
+            this.startCreationObliteration();
+        });
+    }
+
+    // --- 新增机制: 造物毁绝 ---
+    startCreationObliteration() {
+        this.say("目睹造物的终结...", 2);
+        this.startCast("造物毁绝", 1.5, () => {
+            // Spawn Planet
+            const corners = [0, 1, 2, 3, 4, 5, 6, 7];
+            const idx = corners[Math.floor(Math.random() * corners.length)];
+            const pos = this.getOctagonCorner(idx);
+            
+            this.planet.active = true;
+            this.planet.x = pos.x;
+            this.planet.y = pos.y;
+            this.planet.opacity = 0;
+            this.planet.currentIndex = idx;
+            this.planet.targetIndex = idx;
+            this.planet.sliding = false;
+            
+            // Immediately cast next skill
+            this.startObliterationOrder();
+        });
+    }
+
+    startObliterationOrder() {
+        this.startCast("毁绝指令", 1.0, () => {
+            const flashes = Math.random() > 0.5 ? 2 : 5;
+            this.eyeState.totalFlashes = flashes;
+            this.eyeState.flashCount = 0;
+            this.eyeState.flashTimer = 0;
+            
+            this.doEyeFlashSequence(flashes);
+        });
+    }
+
+    doEyeFlashSequence(remaining) {
+        if (remaining <= 0) {
+             // Done flashing
+             this.eyeState.flashing = false;
+             // Wait 1 second
+             Scheduler.add(1.0, () => {
+                 this.startPlanetSlide(this.eyeState.totalFlashes);
+             });
+             return;
+        }
+        
+        // Flash On
+        this.eyeState.flashing = true;
+        this.eyeState.flashCount++;
+        // Play sound or effect here if needed
+        
+        // Wait 0.3s then turn off
+        Scheduler.add(0.3, () => {
+            this.eyeState.flashing = false;
+            // Wait 0.3s before next flash (simulating blink interval)
+            Scheduler.add(0.3, () => {
+                this.doEyeFlashSequence(remaining - 1);
+            });
+        });
+    }
+
+    startPlanetSlide(totalSteps) {
+        this.animatePlanetStep(totalSteps, 0);
+    }
+
+    animatePlanetStep(totalSteps, currentStep) {
+        if (currentStep >= totalSteps) {
+            // Sliding Done
+            this.planet.sliding = false;
+            
+            // Delay 0.5s
+            Scheduler.add(0.5, () => {
+                this.showPlanetDamageWarning();
+            });
+            return;
+        }
+
+        const startIdx = this.planet.currentIndex;
+        // Counter-clockwise: index increases (or decreases? standard math angle increases CCW)
+        // Let's stick to standard angle: 0 -> pi/4 -> pi/2 is CCW.
+        // So index + 1
+        const nextIdx = (startIdx + 1) % 8; 
+        
+        this.planet.currentIndex = nextIdx; // Update logic index for next step
+        
+        const p1 = this.getOctagonCorner(startIdx);
+        const p2 = this.getOctagonCorner(nextIdx);
+        
+        // Slide visual logic
+        const duration = 0.4; // Speed per edge
+        
+        // Using a custom updater for smooth movement
+        const moveTask = {
+            duration: duration, timer: 0, startX: p1.x, startY: p1.y, endX: p2.x, endY: p2.y,
+            update: (dt) => {
+                moveTask.timer += dt;
+                const t = Math.min(1, moveTask.timer / moveTask.duration);
+                // Ease in out
+                const ease = t < .5 ? 2 * t * t : -1 + (4 - 2 * t) * t;
+                this.planet.x = moveTask.startX + (moveTask.endX - moveTask.startX) * ease;
+                this.planet.y = moveTask.startY + (moveTask.endY - moveTask.startY) * ease;
+                
+                if (t >= 1) return true; return false;
+            }
+        };
+        
+        // Hook into Boss update via a temp property or just Scheduler hack
+        // Since Boss.update processes dashState, let's use a new planetMoveState
+        this.planetMoveState = moveTask;
+        
+        Scheduler.add(duration, () => {
+            this.planetMoveState = null;
+            // Next step
+            this.animatePlanetStep(totalSteps, currentStep + 1);
+        });
+    }
+    
+    showPlanetDamageWarning() {
+        const radiusUnits = 22;
+        const pixelRadius = radiusUnits * UNIT_LEN; // 660px
+        
+        // Show telegraph 0.5s
+        // Note: This is huge.
+        TelegraphManager.addCircle(this.planet.x, this.planet.y, pixelRadius, 0.5, () => {
+             this.resolvePlanetDamage(pixelRadius);
+        });
+    }
+    
+    resolvePlanetDamage(radius) {
+        screenShake = 60;
+        EffectManager.addExplosion(this.planet.x, this.planet.y, 100, 'rgba(255, 50, 50, 0.8)');
+        // Massive shockwave visual
+        EffectManager.addShockwave(this.planet.x, this.planet.y, radius, 0, Math.PI * 4); // 360 deg
+        
+        const dist = Math.sqrt(Math.pow(player.x - this.planet.x, 2) + Math.pow(player.y - this.planet.y, 2));
+        
+        if (dist <= radius) {
+            player.takeDamage(800, "造物毁绝");
+        } else {
+            CombatLog.add("回避成功！", "#2ecc71");
+        }
+        
+        // Cleanup & Chain to New Mechanic
+        Scheduler.add(2.0, () => { // 等待2秒后接新机制
+            this.planet.active = false;
+            this.startSolarAscensionCombo(); // 接入新机制
+        });
+    }
+
+    // --- 新机制：日之升变 (Solar Ascension Combo) ---
+    startSolarAscensionCombo() {
+        // 1. 随机日之心或日之环
+        const isSolarCore = Math.random() > 0.5;
+        const solarSkillName = isSolarCore ? "日之心准备" : "日之环准备";
+        
+        this.say("终焉的光辉...", 1.5);
+        
+        // 读条2秒：日之X准备
+        this.startCast(solarSkillName, 2.0, () => {
+            
+            // 等待0.5秒
+            Scheduler.add(0.5, () => {
+                
+                // 2. 随机左侧飞升或右侧飞升
+                const isLeftAscension = Math.random() > 0.5;
+                const wingSkillName = isLeftAscension ? "左侧飞升" : "右侧飞升";
+                
+                // 读条2秒：X侧飞升
+                this.startCast(wingSkillName, 2.0, () => {
+                    
+                    // 读条结束后等待1秒
+                    Scheduler.add(1.0, () => {
+                        this.executeSolarAscension(isSolarCore, isLeftAscension);
+                    });
+                });
+            });
+        });
+    }
+
+    executeSolarAscension(isCore, isLeftAscension) {
+        const warningDuration = 0.8;
+        const solarRadius = 6 * UNIT_LEN; // 6个单位距离 (1单位=30px) -> 180px
+        
+        // --- 绘制日之X预警 ---
+        if (isCore) {
+            // 日之心：圆心半径6单位为警示
+            TelegraphManager.addCircle(this.x, this.y, solarRadius, warningDuration, () => {});
+        } else {
+            // 日之环：圆心半径6单位为安全 -> 甜甜圈
+            // 外径设足够大 (2000)
+            TelegraphManager.addDonut(this.x, this.y, solarRadius, 2000, warningDuration, () => {});
+        }
+        
+        // --- 绘制飞升预警 ---
+        // 垂直分界线以Boss为准 (this.x)
+        // 左侧飞升 -> 右边半场警示 (Rect, Angle 0)
+        // 右侧飞升 -> 左边半场警示 (Rect, Angle PI)
+        
+        const rectLength = 3000; // 足够长覆盖半场
+        const rectWidth = 3000;  // 足够宽覆盖上下
+        
+        if (isLeftAscension) {
+            // 左侧飞升 -> 右半场危险 (从Boss向右画矩形)
+            // Angle 0 (向右)
+            TelegraphManager.addRect(this.x, this.y, rectLength, rectWidth, 0, warningDuration, () => {});
+        } else {
+            // 右侧飞升 -> 左半场危险 (从Boss向左画矩形)
+            // Angle PI (向左)
+            TelegraphManager.addRect(this.x, this.y, rectLength, rectWidth, Math.PI, warningDuration, () => {});
+        }
+        
+        // --- 0.8秒后结算伤害 ---
+        Scheduler.add(warningDuration, () => {
+            this.resolveSolarAscensionDamage(isCore, isLeftAscension, solarRadius);
+        });
+    }
+
+    resolveSolarAscensionDamage(isCore, isLeftAscension, solarRadius) {
+        screenShake = 20;
+        EffectManager.addExplosion(this.x, this.y, 100, 'rgba(255, 215, 0, 0.8)');
+        
+        let totalDamage = 0;
+        let reasons = [];
+        
+        // 1. 判定日之X
+        const dist = Math.sqrt(Math.pow(player.x - this.x, 2) + Math.pow(player.y - this.y, 2));
+        let hitSolar = false;
+        
+        if (isCore) {
+            // 日之心：如果在圈内受伤
+            if (dist <= solarRadius) hitSolar = true;
+        } else {
+            // 日之环：如果在圈外受伤
+            if (dist > solarRadius) hitSolar = true;
+        }
+        
+        if (hitSolar) {
+            totalDamage += 500;
+            reasons.push(isCore ? "日之心" : "日之环");
+            EffectManager.addExplosion(player.x, player.y, 60, 'rgba(255, 50, 0, 0.5)');
+        } else {
+            // 如果是日之环，安全区内有个特效
+            if (!isCore) EffectManager.addShockwave(this.x, this.y, solarRadius, 0, Math.PI*2);
+        }
+        
+        // 2. 判定飞升
+        // Boss作垂直分界线 x = this.x
+        let hitWing = false;
+        if (isLeftAscension) {
+            // 左侧飞升 -> 右半场危险 (player.x > this.x)
+            if (player.x > this.x) hitWing = true;
+        } else {
+            // 右侧飞升 -> 左半场危险 (player.x < this.x)
+            if (player.x < this.x) hitWing = true;
+        }
+        
+        if (hitWing) {
+            totalDamage += 500;
+            reasons.push(isLeftAscension ? "左侧飞升" : "右侧飞升");
+            // 简单的全屏闪光或半屏特效
+            // 这里用多个爆炸模拟半场轰炸
+            const sideDir = isLeftAscension ? 1 : -1;
+            for(let i=0; i<5; i++) {
+                EffectManager.addExplosion(this.x + sideDir * (100 + i*100), this.y + (Math.random()-0.5)*400, 80, 'rgba(255,255,255,0.5)');
+            }
+        }
+        
+        if (totalDamage > 0) {
+            player.takeDamage(totalDamage, reasons.join("+"));
+        } else {
+            CombatLog.add("完美回避！", "#2ecc71");
+        }
+        
+        // --- 修正后的循环逻辑 ---
+        // 需求: 结束后等待1秒，随后开始重复2次【至高之寒/炎阶段——日之环和左侧飞升组合技阶段】
+        // 重复完毕1次后需要等待1秒再重复下一次。
+        // 重复2次后，boss等待0.5s，进入长达15s的读条“创世纪”
+        
+        Scheduler.add(1.0, () => {
+            if (this.loopCount < 2) {
+                this.loopCount++;
+                this.say("轮回... (第" + this.loopCount + "次)", 1.5);
+                // 至高之寒/炎阶段是 startSupremeMechanic
+                // 这个函数会链式触发后续所有技能，直到再次回到 startSolarAscensionCombo -> resolveSolarAscensionDamage
+                this.startSupremeMechanic();
+            } else {
+                // 重复2次结束
+                Scheduler.add(0.5, () => {
+                    this.startGenesis();
+                });
+            }
+        });
+    }
+    
+    startGenesis() {
+        this.say("世界……重塑！", 3);
+        // 进入长达15s的读条“创世纪”
+        this.startCast("创世纪", 15.0, () => {
+             this.executeGenesis();
+        });
+        
+        // 读条期间增加一点氛围特效（可选）
+        Scheduler.add(5.0, () => this.say("一切都将归于虚无...", 3));
+        Scheduler.add(10.0, () => this.say("不可逆转的终结！", 3));
+    }
+    
+    executeGenesis() {
+        // 读条结束后对全屏造成秒杀级别的伤害
+        // 特效是屏幕平滑变黑的同时充满红色闪电且伴随剧烈震动
+        
+        EffectManager.addGenesisDoom();
+        screenShake = 80; // 剧烈震动
+        
+        // 稍作延迟让黑屏显现
+        Scheduler.add(0.5, () => {
+            player.takeDamage(999999, "创世纪 - 世界终结");
+            this.say("再会了，凡人。", 5);
+        });
+    }
+
+    draw(ctx) {
+        // Helper for planet update injection
+        if (this.planetMoveState) {
+            const now = Date.now();
+            if (!this.lastPlanetMoveTime) this.lastPlanetMoveTime = now;
+            const dt = (now - this.lastPlanetMoveTime) / 1000;
+            this.lastPlanetMoveTime = now;
+            this.planetMoveState.update(dt);
+        } else {
+            this.lastPlanetMoveTime = null;
+        }
+
+        // 复用旧的 Draw，但添加 dashState hack
+        if (!this.isVisible) return; 
+        if (this.dashState) {
+            const now = Date.now();
+            if (!this.lastDashTime) this.lastDashTime = now;
+            const dt = (now - this.lastDashTime) / 1000;
+            this.lastDashTime = now;
+            this.dashState.update(dt);
+        } else {
+            this.lastDashTime = null;
+        }
+        
+        // --- Draw Planet ---
+        if (this.planet.active) {
+            ctx.save();
+            ctx.translate(this.planet.x, this.planet.y);
+            ctx.globalAlpha = this.planet.opacity;
+            
+            // Draw Planet Body
+            ctx.beginPath();
+            ctx.arc(0, 0, this.planet.radius, 0, Math.PI * 2);
+            const grad = ctx.createRadialGradient(-20, -20, 10, 0, 0, this.planet.radius);
+            grad.addColorStop(0, '#bdc3c7');
+            grad.addColorStop(1, '#2c3e50');
+            ctx.fillStyle = grad;
+            ctx.fill();
+            
+            // Ring
+            ctx.beginPath();
+            ctx.ellipse(0, 0, this.planet.radius * 1.5, this.planet.radius * 0.4, Math.PI / 6, 0, Math.PI * 2);
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.6)';
+            ctx.lineWidth = 4;
+            ctx.stroke();
+            
+            // Glow
+            ctx.shadowBlur = 20;
+            ctx.shadowColor = 'rgba(0,0,0,0.5)';
+            
+            ctx.restore();
+        }
+
+        ctx.save();
+        ctx.globalAlpha = this.opacity; 
+        ctx.save(); ctx.translate(this.x, this.y); ctx.rotate(this.angle - Math.PI/2);
+        const r = this.radius + 15; const isSelected = (currentTarget === this);
+        ctx.strokeStyle = isSelected ? CONFIG.colors.selectedRing : CONFIG.colors.targetRing; ctx.lineWidth = isSelected ? 3 : 2; ctx.setLineDash([15, 10]); 
+        if (isSelected) { ctx.save(); ctx.rotate(Date.now()/1000); }
+        ctx.beginPath(); ctx.arc(0, 0, r, 0, Math.PI * 2); ctx.stroke();
+        if (isSelected) ctx.restore(); ctx.setLineDash([]);
+        ctx.fillStyle = isSelected ? CONFIG.colors.selectedRing : CONFIG.colors.targetRing;
+        ctx.beginPath(); ctx.moveTo(-6, r - 4); ctx.lineTo(0, r + 8); ctx.lineTo(6, r - 4); ctx.fill();
+        if (isSelected) {
+            ctx.save(); ctx.rotate(-(this.angle - Math.PI/2)); 
+            ctx.fillStyle = CONFIG.colors.selectedRing;
+            ctx.beginPath(); ctx.moveTo(0, -r - 40); ctx.lineTo(-10, -r - 60); ctx.lineTo(10, -r - 60); ctx.fill();
+            const floatY = Math.sin(Date.now()/200) * 5; ctx.translate(0, floatY); ctx.restore();
+        }
+        if (this.invulnerable) {
+            ctx.save(); const shieldR = this.radius + 25; ctx.strokeStyle = '#bdc3c7'; ctx.lineWidth = 2; ctx.rotate(Date.now() / 800); 
+            ctx.beginPath();
+            for (let i = 0; i < 6; i++) {
+                const angle = i * Math.PI / 3; const sx = Math.cos(angle) * shieldR; const sy = Math.sin(angle) * shieldR;
+                if (i === 0) ctx.moveTo(sx, sy); else ctx.lineTo(sx, sy);
+            }
+            ctx.closePath(); ctx.stroke();
+            ctx.globalAlpha = 0.3 * this.opacity; ctx.fillStyle = '#95a5a6'; ctx.fill(); ctx.restore();
+        }
+        ctx.restore();
+
+        const drawY = this.y + this.floatOffset;
+        ctx.save(); ctx.translate(this.x, drawY); ctx.rotate(this.angle - Math.PI/2);
+        ctx.strokeStyle = CONFIG.colors.ink; ctx.lineWidth = 2;
+        for (let i = 0; i < 3; i++) {
+            const wingSize = 120 - i * 20; const angleOffset = 0.5 + i * 0.3;
+            ctx.save(); ctx.rotate(-angleOffset + Math.sin(this.wingCycle + i)*0.1); this.drawWing(ctx, -wingSize, -1); ctx.restore();
+            ctx.save(); ctx.rotate(angleOffset - Math.sin(this.wingCycle + i)*0.1); this.drawWing(ctx, wingSize, 1); ctx.restore();
+        }
+        for(let i=0; i<12; i++) {
+            const rot = (Date.now() / 2000) + (i * (Math.PI*2)/12); const r = this.radius + 10 + Math.random() * 5;
+            ctx.beginPath(); ctx.moveTo(Math.cos(rot)*this.radius, Math.sin(rot)*this.radius); ctx.lineTo(Math.cos(rot)*r, Math.sin(rot)*r); ctx.stroke();
+        }
+        ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(0, 0, this.radius, 0, Math.PI*2); ctx.fill(); ctx.stroke();
+        
+        // Draw Face / Eyes
+        // If Flashing, draw RED eyes
+        if (this.eyeState.flashing) {
+            ctx.fillStyle = 'red';
+            ctx.shadowBlur = 10;
+            ctx.shadowColor = 'red';
+            
+            // Left Eye
+            ctx.beginPath(); ctx.arc(-15, -10, 8, 0, Math.PI*2); ctx.fill();
+            // Right Eye
+            ctx.beginPath(); ctx.arc(15, -10, 8, 0, Math.PI*2); ctx.fill();
+            
+            ctx.shadowBlur = 0;
+        } else {
+            // Normal Eyes
+            ctx.beginPath(); ctx.moveTo(-20, 0); ctx.quadraticCurveTo(0, 15, 20, 0); ctx.quadraticCurveTo(0, -15, -20, 0); ctx.stroke();
+            ctx.beginPath(); ctx.arc(0, 0, 5, 0, Math.PI*2); ctx.fillStyle = '#000'; ctx.fill();
+        }
+        
+        ctx.restore(); ctx.restore(); 
+    }
+
+    drawWing(ctx, length, direction) {
+        ctx.beginPath(); ctx.moveTo(0, 0); ctx.quadraticCurveTo(length/2, -40, length, -20);
+        let currX = length; let currY = -20; const steps = 5; const stepSize = length / steps;
+        for(let j=0; j<steps; j++) {
+            const nextX = currX - stepSize * direction; const nextY = currY + 15 + Math.random()*5; const midX = (currX + nextX)/2;
+            ctx.quadraticCurveTo(currX, nextY, midX, nextY - 5); ctx.quadraticCurveTo(midX, nextY, nextX, currY + 10);
+            currX = nextX; currY = currY + 10;
+        }
+        ctx.lineTo(0,0); ctx.lineWidth = 1; ctx.moveTo(0,0); ctx.lineTo(length * 0.8, -10); ctx.stroke();
+    }
+}
+
+// --- 主程序 ---
+
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+
+let player;
+let boss;
+let lastTime = 0;
+
+function init() {
+    resize();
+    window.addEventListener('resize', resize);
+    Input.init();
+
+    player = new Player();
+    boss = new Boss();
+    damageHistory = {};
+
+    document.getElementById('btn-ready').addEventListener('click', () => {
+        // 尝试播放音频（以防加载时自动播放被阻止）
+        if (bgm.paused) {
+            bgm.play().catch(err => console.log("Audio play failed", err));
+        }
+        startCountdown();
+    });
+    
+    // 鼠标交互 (仅选择)
+    canvas.addEventListener('mousedown', (e) => {
+        const rect = canvas.getBoundingClientRect();
+        const mx = e.clientX - rect.left - canvas.width / 2;
+        const my = e.clientY - rect.top - canvas.height / 2;
+        
+        // 选择目标
+        let clickedTarget = null;
+        if (boss.isTargetable && boss.isVisible) {
+            const dx = mx - boss.x; const dy = my - (boss.y + boss.floatOffset);
+            if (Math.sqrt(dx*dx + dy*dy) < boss.radius + 30) clickedTarget = boss;
+        }
+        for (const c of boss.crosses) {
+            if (c.active && c.hp > 0) {
+                const dx = mx - c.x; const dy = my - c.y;
+                if (Math.sqrt(dx*dx + dy*dy) < c.radius + 20) clickedTarget = c;
+            }
+        }
+        if (clickedTarget) currentTarget = clickedTarget;
+    });
+    
+    // 技能图标点击交互
+    ['q', 'e', 'r', 'f', 'g'].forEach(key => {
+        const slot = document.getElementById(`skill-${key}`);
+        slot.addEventListener('mousedown', (e) => {
+            e.stopPropagation(); // 防止点穿到canvas移动
+            if (currentState === STATE.COMBAT) player.useSkill(key);
+        });
+    });
+    
+    player.updateUI();
+    boss.updateUI();
+
+    // 尝试自动播放背景音乐
+    bgm.play().catch(() => {
+        console.log("Browser blocked autoplay. Waiting for interaction.");
+    });
+
+    requestAnimationFrame(loop);
+}
+
+function resize() {
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+}
+
+function startCountdown() {
+    if (currentState !== STATE.PRE_FIGHT) return;
+    const btn = document.getElementById('btn-ready');
+    const countText = document.getElementById('countdown-text');
+    btn.style.display = 'none'; countText.style.display = 'block'; currentState = STATE.COUNTDOWN;
+    let count = 3; countText.innerText = count;
+    const timer = setInterval(() => {
+        count--;
+        if (count > 0) { countText.innerText = count; } 
+        else {
+            clearInterval(timer); countText.innerText = "START!";
+            currentState = STATE.COMBAT; gameTime = 0; currentTarget = boss;
+            setTimeout(() => { countText.style.display = 'none'; }, 1000);
+            boss.say("凡人，见证终焉！");
+        }
+    }, 1000);
+}
+
+function loop(timestamp) {
+    const dt = (timestamp - lastTime) / 1000;
+    lastTime = timestamp;
+    const safeDt = Math.min(dt, 0.1);
+    
+    // 在胜利或失败状态下暂停逻辑更新，但保持绘制（背景/实体停止）
+    if (currentState !== STATE.VICTORY && currentState !== STATE.WIPE) {
+        update(safeDt);
+    }
+    
+    draw();
+    requestAnimationFrame(loop);
+}
+
+function update(dt) {
+    if (currentState === STATE.COMBAT) {
+        gameTime += dt;
+        Scheduler.update(dt);
+        TelegraphManager.update(dt);
+        EffectManager.update(dt);
+        HolySealManager.update(dt);
+        if (screenShake > 0) { screenShake -= dt * 60; if (screenShake < 0) screenShake = 0; }
+    }
+    player.update(dt);
+    boss.update(dt);
+}
+
+function draw() {
+    ctx.fillStyle = CONFIG.colors.paper;
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.save();
+    if (screenShake > 0) {
+        const sx = (Math.random() - 0.5) * screenShake;
+        const sy = (Math.random() - 0.5) * screenShake;
+        ctx.translate(sx, sy);
+    }
+    ctx.translate(canvas.width / 2, canvas.height / 2);
+
+    ctx.strokeStyle = CONFIG.colors.ink; ctx.lineWidth = 3;
+    roughCircle(ctx, 0, 0, CONFIG.arenaRadius, 1.5);
+    ctx.lineWidth = 1; ctx.strokeStyle = 'rgba(0,0,0,0.1)';
+    ctx.beginPath(); ctx.arc(0,0, CONFIG.arenaRadius*0.8, 0, Math.PI*2); ctx.stroke();
+
+    if (currentState === STATE.PRE_FIGHT || currentState === STATE.COUNTDOWN) {
+        ctx.strokeStyle = '#4a90e2'; ctx.lineWidth = 2; ctx.setLineDash([10, 10]); ctx.lineDashOffset = -Date.now() / 20;
+        ctx.beginPath(); ctx.arc(0, 250, CONFIG.startZoneRadius, 0, Math.PI * 2); ctx.stroke();
+        ctx.setLineDash([]); ctx.fillStyle = 'rgba(74, 144, 226, 0.1)'; ctx.fill();
+    }
+    
+    HolySealManager.draw(ctx);
+    TelegraphManager.draw(ctx);
+    if (boss.inCrossPhase) { for(const c of boss.crosses) c.draw(ctx); }
+
+    boss.draw(ctx);
+    player.draw(ctx);
+    EffectManager.draw(ctx);
+
+    ctx.restore();
+}
+
+// 启动
+init();
+
+</script>
+</body>
+</html>
